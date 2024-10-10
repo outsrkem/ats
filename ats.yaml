@@ -1,0 +1,11 @@
+ats:
+  app:
+    bind: "0.0.0.0:18185"
+  database:
+    host: "192.168.198.20"
+    port: "3306"
+    name: "atsdb"
+    user: "ats"
+    passwd: "123456##ats"
+  log:
+    level: "INFO"
