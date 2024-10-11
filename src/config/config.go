@@ -2,9 +2,9 @@ package config
 
 import (
 	"flag"
-	"log"
 	"os"
 
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"gopkg.in/yaml.v2"
 )
 
@@ -12,6 +12,8 @@ type FlagArgs struct {
 	CfgPath      string
 	PrintVersion bool
 }
+
+var Cfg *Config
 
 func NewFlagArgs() *FlagArgs {
 	fa := &FlagArgs{}
@@ -25,21 +27,23 @@ func NewFlagArgs() *FlagArgs {
 func InitConfig() *Config {
 	var _cfg Config
 	fa := NewFlagArgs()
+	if fa.PrintVersion {
+		versions, _ := newVersions(Version, GoVersion, GitCommit)
+		versions.Print(versions)
+	}
 
-
-	log.Println("Read configuration file:", fa.CfgPath)
-
+	hlog.Info("Read configuration file: ", fa.CfgPath)
 	configData, err := os.ReadFile(fa.CfgPath)
 	if err != nil {
-		log.Println("读取配置文件失败:", err)
+		hlog.Info("读取配置文件失败")
 		os.Exit(1)
 	}
 
 	err = yaml.Unmarshal(configData, &_cfg)
 	if err != nil {
-		log.Println("解析配置文件失败:", err)
+		hlog.Info("配置解析失败")
 		os.Exit(1)
 	}
-
-	return &_cfg
+	Cfg = &_cfg
+	return Cfg
 }

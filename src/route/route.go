@@ -10,7 +10,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
-func RouteAts(h *server.Hertz) {
+func AtsRoute(h *server.Hertz) {
 	h.GET("/", func(ctx context.Context, c *app.RequestContext) {
 		c.String(http.StatusOK, "get")
 	})

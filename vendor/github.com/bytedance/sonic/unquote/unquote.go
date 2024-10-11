@@ -18,52 +18,32 @@ package unquote
 
 import (
     `unsafe`
-    `runtime`
 
     `github.com/bytedance/sonic/internal/native`
     `github.com/bytedance/sonic/internal/native/types`
     `github.com/bytedance/sonic/internal/rt`
 )
 
-// String unescapes a escaped string (not including `"` at begining and end)
-// It validates invalid UTF8 and replace with `\ufffd`
 func String(s string) (ret string, err types.ParsingError) {
     mm := make([]byte, 0, len(s))
-    err = intoBytesUnsafe(s, &mm, true)
+    err = intoBytesUnsafe(s, &mm)
     ret = rt.Mem2Str(mm)
     return
 }
 
-// IntoBytes is same with String besides it output result into a buffer m
 func IntoBytes(s string, m *[]byte) types.ParsingError {
     if cap(*m) < len(s) {
         return types.ERR_EOF
     } else {
-        return intoBytesUnsafe(s, m, true)
+        return intoBytesUnsafe(s, m)
     }
 }
 
-// String unescapes a escaped string (not including `"` at begining and end)
-//   - replace enables replacing invalid utf8 escaped char with `\uffd`
-func _String(s string, replace bool) (ret string, err error) {
-    mm := make([]byte, 0, len(s))
-    err = intoBytesUnsafe(s, &mm, replace)
-    ret = rt.Mem2Str(mm)
-    return
-}
-
-func intoBytesUnsafe(s string, m *[]byte, replace bool) types.ParsingError {
+func intoBytesUnsafe(s string, m *[]byte) types.ParsingError {
     pos := -1
     slv := (*rt.GoSlice)(unsafe.Pointer(m))
     str := (*rt.GoString)(unsafe.Pointer(&s))
-
-    flags := uint64(0)
-    if replace {
-        /* unquote as the default configuration, replace invalid unicode with \ufffd */
-        flags |= types.F_UNICODE_REPLACE
-    }
-
-    ret := native.Unquote(str.Ptr, str.Len, slv.Ptr, &pos, flags)
+    ret := native.Unquote(str.Ptr, str.Len, slv.Ptr, &pos, 0)
 
     /* check for errors */
     if ret < 0 {
@@ -72,9 +52,5 @@ func intoBytesUnsafe(s string, m *[]byte, replace bool) types.ParsingError {
 
     /* update the length */
     slv.Len = ret
-    runtime.KeepAlive(s)
     return 0
 }
-
-
-

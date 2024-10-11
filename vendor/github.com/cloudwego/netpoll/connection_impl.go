@@ -220,15 +220,10 @@ func (c *connection) MallocLen() (length int) {
 // If empty, it will call syscall.Write to send data directly,
 // otherwise the buffer will be sent asynchronously by the epoll trigger.
 func (c *connection) Flush() error {
-	if !c.IsActive() {
+	if !c.IsActive() || !c.lock(flushing) {
 		return Exception(ErrConnClosed, "when flush")
 	}
-
-	if !c.lock(flushing) {
-		return Exception(ErrConcurrentAccess, "when flush")
-	}
 	defer c.unlock(flushing)
-
 	c.outputBuffer.Flush()
 	return c.flush()
 }
@@ -287,12 +282,8 @@ func (c *connection) Read(p []byte) (n int, err error) {
 
 // Write will Flush soon.
 func (c *connection) Write(p []byte) (n int, err error) {
-	if !c.IsActive() {
+	if !c.IsActive() || !c.lock(flushing) {
 		return 0, Exception(ErrConnClosed, "when write")
-	}
-
-	if !c.lock(flushing) {
-		return 0, Exception(ErrConcurrentAccess, "when write")
 	}
 	defer c.unlock(flushing)
 

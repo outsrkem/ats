@@ -1,0 +1,18 @@
+[
+    {
+        "actionInfo": {
+            "name": "ats:traces:create",
+            "actionGroup": "ListOnly",
+            "description": "上传审计日志",
+            "status": "enabled"
+        }
+    },
+    {
+        "actionInfo": {
+            "name": "ats:traces:list",
+            "actionGroup": "ListOnly",
+            "description": "查询事件列表",
+            "status": "enabled"
+        }
+    }
+]

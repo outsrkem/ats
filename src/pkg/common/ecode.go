@@ -1,5 +1,6 @@
 package common
 
 const (
-	EcodeOK = "E.00000" // 结果正常
+	EcodeOK    = "ATS.0000" // 结果正常
+	EcodeError = "ATS.0101" // 结果错误
 )

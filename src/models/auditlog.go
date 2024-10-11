@@ -2,23 +2,40 @@ package models
 
 import (
 	"ats/src/database/mysql"
-	"fmt"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
-type AuditLog struct {
-	Id        int64  `db:"id"         json:"id"`
-	Uuid      int64  `db:"uuid"       json:"uuid"`
-	UserId    string `db:"user_id"    json:"user_id"`
-	EventTime string `db:"event_time" json:"event_time"`
-	SourceIp  string `db:"source_ip"  json:"source_ip"`
-}
-
-func SelectAuditLog() (*[]AuditLog, error) {
-	sqlStr := "SELECT * FROM auditlog"
-	var alog []AuditLog
-	if err := mysql.DB.Select(&alog, sqlStr); err != nil {
-		fmt.Printf("get data failed, err:%v\n", err)
+func SelectAuditLog(from, to int64, page, pageSize int, count *int) (*[]DbAuditLog, error) {
+	sqlStr := `SELECT * FROM auditlog WHERE etime >= ? AND etime <= ? ORDER BY etime LIMIT ? OFFSET ?;`
+	var alog []DbAuditLog
+	offset := (page - 1) * pageSize
+	if err := mysql.DB.Select(&alog, sqlStr, from, to, pageSize, offset); err != nil {
+		hlog.Errorf("get data failed, err:%v", err)
+		return nil, err
+	}
+	countSql := `SELECT COUNT(*) FROM auditlog WHERE etime >= ? AND etime <= ?;`
+	err := mysql.DB.Get(count, countSql, from, to)
+	if err != nil {
+		hlog.Debugf("Count Records sql: %v", countSql)
+		hlog.Errorf("Get count err: %v", err)
 		return nil, err
 	}
 	return &alog, nil
+}
+
+func InstAuditLog(d *DbAuditLog) error {
+	_sql := `INSERT INTO auditlog(eid,user_id,account,source_ip,service,name,rating,etime,message,create_time) VALUES (?, ?,?, ?, ?, ?, ?, ?, ?, ?);`
+	_args := []interface{}{d.Eid, d.UserId, d.Account, d.SourceIp, d.Service, d.Name, d.Rating, d.ETime, d.Message, d.CreateTime}
+	result, err := mysql.DB.Exec(_sql, _args...)
+	if err != nil {
+		hlog.Error("install data error: ", err)
+		return err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		hlog.Error("install data error: ", err)
+	}
+	hlog.Info("install data successfully, id: ", id)
+	return nil
 }

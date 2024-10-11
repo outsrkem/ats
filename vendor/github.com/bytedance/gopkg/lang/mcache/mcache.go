@@ -16,8 +16,6 @@ package mcache
 
 import (
 	"sync"
-
-	"github.com/bytedance/gopkg/lang/dirtmake"
 )
 
 const maxSize = 46
@@ -29,7 +27,7 @@ func init() {
 	for i := 0; i < maxSize; i++ {
 		size := 1 << i
 		caches[i].New = func() interface{} {
-			buf := dirtmake.Bytes(0, size)
+			buf := make([]byte, 0, size)
 			return buf
 		}
 	}

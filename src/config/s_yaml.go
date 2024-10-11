@@ -7,6 +7,7 @@ type Ats struct {
 	App      App      `yaml:"app"`
 	Database Database `yaml:"database"`
 	Log      Log      `yaml:"log"`
+	Uias     Uias     `yaml:"uias"`
 }
 
 type App struct {
@@ -19,6 +20,10 @@ type Database struct {
 	Name   string `yaml:"name"`
 	User   string `yaml:"user"`
 	Passwd string `yaml:"passwd"`
+}
+
+type Uias struct {
+	Endpoint string `yaml:"endpoint"`
 }
 
 type Log struct {
