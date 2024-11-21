@@ -2,13 +2,18 @@ package models
 
 import (
 	"ats/src/database/mysql"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
-func SelectAuditLog(from, to int64, page, pageSize int, count *int64) ([]OrmAuditLog, error) {
+func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	var alog []OrmAuditLog
-	err := mysql.DB.Model(&OrmAuditLog{}).
-		Where("etime>=? AND etime<=?", from, to).
-		Count(count).Limit(pageSize).Offset((page - 1) * pageSize).Order("id").Find(&alog).Error
+	query := mysql.DB.Model(&OrmAuditLog{}).Order("id DESC")
+	if q.From != 0 && q.To != 0 {
+		query.Where("etime>=? AND etime<=?", q.From, q.To)
+	}
+	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
+	hlog.Infof("query condition: %v", q)
 	return alog, err
 }
 

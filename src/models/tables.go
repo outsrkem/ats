@@ -19,3 +19,11 @@ type OrmAuditLog struct {
 func (OrmAuditLog) TableName() string {
 	return "auditlog"
 }
+
+// QueryCon 日志查询条件 query 参数
+type QueryCon struct {
+	To       int64
+	From     int64
+	Page     int
+	PageSize int
+}

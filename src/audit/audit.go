@@ -67,43 +67,37 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
 		var (
-			err  error
-			to   int64
-			from int64
+			err error
+			q   models.QueryCon
 		)
-		if c.DefaultQuery("to", "") != "" && c.DefaultQuery("from", "") != "" {
+		if c.DefaultQuery("from", "") != "" && c.DefaultQuery("to", "") != "" {
 			// from 和 to 要一起使用，否则无效
-			to, err = strToInt64(c.DefaultQuery("to", ""))
+			q.From, err = strToInt64(c.DefaultQuery("from", ""))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 				return
 			}
-			from, err = strToInt64(c.DefaultQuery("from", ""))
+			q.To, err = strToInt64(c.DefaultQuery("to", ""))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 				return
 			}
+			hlog.Infof("Query Audit Log, from:%v, to:%v", q.From, q.To)
 		}
-		if from == 0 || to == 0 {
-			now := time.Now()
-			to = now.UnixNano() / 1e6
-			from = now.Add(-time.Hour).UnixNano() / int64(time.Millisecond)
-			hlog.Warn("If the event interval is abnormal, the default interval is used")
-		}
-		page, err := strToInt(c.DefaultQuery("page", "1"))
+
+		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 			return
 		}
-		pageSize, err := strToInt(c.DefaultQuery("page_size", "10"))
+		q.PageSize, err = strToInt(c.DefaultQuery("page_size", "10"))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 			return
 		}
 
-		hlog.Infof("Query Audit Log, from:%v, to:%v", from, to)
 		var count int64
-		row, err := models.SelectAuditLog(from, to, page, pageSize, &count)
+		row, err := models.SelectAuditLog(q, &count) // 查询日志
 		if err != nil {
 			hlog.Error("Database query failure, err: ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))
@@ -127,7 +121,7 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			}
 			alogs = append(alogs, a)
 		}
-		pageInfo := answer.SetPageInfo(pageSize, page, count)
+		pageInfo := answer.SetPageInfo(q.PageSize, q.Page, count)
 		payload := map[string]interface{}{
 			"items":     alogs,
 			"page_info": pageInfo,
