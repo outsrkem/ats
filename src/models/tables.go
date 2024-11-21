@@ -1,16 +1,21 @@
 package models
 
-// DbAuditLog table: auditlog
-type DbAuditLog struct {
-	Id         *int64  `db:"id"`
-	Eid        *string `db:"eid"`
-	UserId     *string `db:"user_id"`
-	Account    *string `db:"account"`
-	SourceIp   *string `db:"source_ip"`
-	Service    *string `db:"service"`
-	Name       *string `db:"name"`
-	Rating     *string `db:"rating"`
-	ETime      *int64  `db:"etime"`
-	Message    *string `db:"message"`
-	CreateTime *int64  `db:"create_time"`
+// OrmAuditLog table: auditlog
+type OrmAuditLog struct {
+	Id         *int64  `gorm:"column:id"`
+	Eid        *string `gorm:"column:eid"`
+	UserId     *string `gorm:"column:user_id"`
+	Account    *string `gorm:"column:account"`
+	SourceIp   *string `gorm:"column:source_ip"`
+	Service    *string `gorm:"column:service"`
+	ResourceId *string `gorm:"column:resource_id"`
+	Name       *string `gorm:"column:name"`
+	Rating     *string `gorm:"column:rating"`
+	ETime      *int64  `gorm:"column:etime"`
+	Message    *string `gorm:"column:message"`
+	CreateTime *int64  `gorm:"column:create_time"`
+}
+
+func (OrmAuditLog) TableName() string {
+	return "auditlog"
 }

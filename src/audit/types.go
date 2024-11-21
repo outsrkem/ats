@@ -10,14 +10,17 @@ type httpCli struct {
 }
 
 type ReqCreateAudLogRaw struct {
-	UserID   string `json:"user_id"`
-	Account  string `json:"account"`
-	SourceIP string `json:"source_ip"`
-	Service  string `json:"service"`
-	Name     string `json:"name"`
-	Rating   string `json:"rating"`
-	Etime    int64  `json:"etime"`
-	Message  string `json:"message"`
+	Service string `json:"service"`
+	Events  []struct {
+		UserID     string `json:"user_id"`
+		Account    string `json:"account"`
+		SourceIP   string `json:"source_ip"`
+		ResourceId string `json:"resource_id"`
+		Name       string `json:"name"`
+		Rating     string `json:"rating"`
+		Etime      int64  `json:"etime"`
+		Message    string `json:"message"`
+	} `json:"events"`
 }
 
 type ResTracesAuditLog struct {
@@ -26,6 +29,7 @@ type ResTracesAuditLog struct {
 	Account    *string `json:"account"`
 	SourceIP   *string `json:"source_ip"`
 	Service    *string `json:"service"`
+	ResourceId *string `json:"resource_id"`
 	Name       *string `json:"name"`
 	Rating     *string `json:"rating"`
 	ETime      *int64  `json:"etime"`

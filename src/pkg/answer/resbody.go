@@ -33,12 +33,12 @@ func ResBody(ecode string, msg interface{}, payload interface{}) map[string]inte
 }
 
 type PageInfo struct {
-	Page     int `json:"page"`
-	PageSize int `json:"page_size"`
-	Total    int `json:"total"`
+	Page     int   `json:"page"`
+	PageSize int   `json:"page_size"`
+	Total    int64 `json:"total"`
 }
 
-func SetPageInfo(pageSize, page, total int) *PageInfo {
+func SetPageInfo(pageSize, page int, total int64) *PageInfo {
 	return &PageInfo{
 		Page:     page,
 		PageSize: pageSize,

@@ -15,18 +15,8 @@ import (
 )
 
 // SaveAuditLog 保存审计日志
-func SaveAuditLog(action string) func(ctx context.Context, c *app.RequestContext) {
+func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
-		hlog.Info("action: ", action)
-		// 进行权限校验
-		//token := c.Request.Header.Get("X-Auth-Token")
-		//flag, result := CheckAction(action, token)
-		//if !flag {
-		//	hlog.Warn("No operation permission")
-		//	c.JSON(http.StatusForbidden, result)
-		//	return
-		//}
-
 		raw, _ := c.Body()
 		var data ReqCreateAudLogRaw
 		if err := json.Unmarshal(raw, &data); err != nil {
@@ -34,49 +24,71 @@ func SaveAuditLog(action string) func(ctx context.Context, c *app.RequestContext
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Insert data failed", ""))
 			return
 		}
-		uuid := uuid4.Uuid4Str()
-		t := time.Now().UnixNano() / 1e6
-		d := models.DbAuditLog{
-			Eid:        &uuid,
-			UserId:     &data.UserID,
-			Account:    &data.Account,
-			SourceIp:   &data.SourceIP,
-			Service:    &data.Service,
-			Name:       &data.Name,
-			Rating:     &data.Rating,
-			ETime:      &data.Etime,
-			Message:    &data.Message,
-			CreateTime: &t,
-		}
-		if err := models.InstAuditLog(&d); err != nil {
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Insert data failed", ""))
+		if len(data.Events) > 100 {
+			hlog.Warn("More than 20 events uploaded.")
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "The number of events exceeded the upper limit by 100.", ""))
 			return
 		}
+		hlog.Info("Create event service: ", data.Service)
+		hlog.Infof("The number of created events is %d", len(data.Events))
+		t := time.Now().UnixNano() / 1e6
+		d := make([]models.OrmAuditLog, 0)
+		for _, item := range data.Events {
+			uuid := uuid4.Uuid4Str()
+			d = append(d, models.OrmAuditLog{
+				Eid:        &uuid,
+				UserId:     &item.UserID,
+				Account:    &item.Account,
+				SourceIp:   &item.SourceIP,
+				Service:    &data.Service,
+				ResourceId: &item.ResourceId,
+				Name:       &item.Name,
+				Rating:     &item.Rating,
+				ETime:      &item.Etime,
+				Message:    &item.Message,
+				CreateTime: &t,
+			})
+		}
+		if err := models.InstAuditLog(d); err != nil {
+			hlog.Error("Event creation failure, ", err)
+			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
+			return
+		}
+		hlog.Info("Event creation success.")
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", ""))
 	}
 }
 
-// TracesAuditLog 查询审计列表
-func TracesAuditLog(action string) func(ctx context.Context, c *app.RequestContext) {
+// TracesAuditLog 查询审计日志列表
+// Parameter from int64: 事件起始时间,包含该时间
+// Parameter to int64: 事件截至事件,包含该时间
+// Parameter page int:
+// Parameter page_size int:
+func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
-		hlog.Info("action: ", action)
-		// 进行权限校验
-		// token := c.Request.Header.Get("X-Auth-Token")
-		// flag, result := CheckAction(action, token)
-		// if !flag {
-		// 	c.JSON(http.StatusForbidden, result)
-		// 	return
-		// }
-
-		to, err := strToInt64(c.DefaultQuery("to", ""))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
-			return
+		var (
+			err  error
+			to   int64
+			from int64
+		)
+		if c.DefaultQuery("to", "") != "" && c.DefaultQuery("from", "") != "" {
+			// from 和 to 要一起使用，否则无效
+			to, err = strToInt64(c.DefaultQuery("to", ""))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+				return
+			}
+			from, err = strToInt64(c.DefaultQuery("from", ""))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+				return
+			}
 		}
-		from, err := strToInt64(c.DefaultQuery("from", ""))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
-			return
+		if from == 0 || to == 0 {
+			now := time.Now()
+			to = now.UnixNano() / 1e6
+			from = now.Add(-time.Hour).UnixNano() / int64(time.Millisecond)
+			hlog.Warn("If the event interval is abnormal, the default interval is used")
 		}
 		page, err := strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
@@ -90,7 +102,7 @@ func TracesAuditLog(action string) func(ctx context.Context, c *app.RequestConte
 		}
 
 		hlog.Infof("Query Audit Log, from:%v, to:%v", from, to)
-		var count int
+		var count int64
 		row, err := models.SelectAuditLog(from, to, page, pageSize, &count)
 		if err != nil {
 			hlog.Error("Database query failure, err: ", err)
@@ -99,13 +111,14 @@ func TracesAuditLog(action string) func(ctx context.Context, c *app.RequestConte
 		}
 
 		alogs := make([]ResTracesAuditLog, 0)
-		for _, item := range *row {
+		for _, item := range row {
 			a := ResTracesAuditLog{
 				Eid:        item.UserId,
 				UserID:     item.UserId,
 				Account:    item.Account,
 				SourceIP:   item.SourceIp,
 				Service:    item.Service,
+				ResourceId: item.ResourceId,
 				Name:       item.Name,
 				Rating:     item.Rating,
 				ETime:      item.ETime,
