@@ -12,14 +12,14 @@ type httpCli struct {
 type ReqCreateAudLogRaw struct {
 	Service string `json:"service"`
 	Events  []struct {
-		UserID     string `json:"user_id"`
-		Account    string `json:"account"`
-		SourceIP   string `json:"source_ip"`
-		ResourceId string `json:"resource_id"`
-		Name       string `json:"name"`
-		Rating     string `json:"rating"`
-		Etime      int64  `json:"etime"`
-		Message    string `json:"message"`
+		UserID     string   `json:"user_id"`
+		Account    string   `json:"account"`
+		SourceIP   string   `json:"source_ip"`
+		ResourceId []string `json:"resource_id"`
+		Name       string   `json:"name"`
+		Rating     string   `json:"rating"`
+		Etime      int64    `json:"etime"`
+		Message    string   `json:"message"`
 	} `json:"events"`
 }
 

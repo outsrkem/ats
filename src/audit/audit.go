@@ -35,19 +35,21 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		d := make([]models.OrmAuditLog, 0)
 		for _, item := range data.Events {
 			uuid := uuid4.Uuid4Str()
-			d = append(d, models.OrmAuditLog{
-				Eid:        &uuid,
-				UserId:     &item.UserID,
-				Account:    &item.Account,
-				SourceIp:   &item.SourceIP,
-				Service:    &data.Service,
-				ResourceId: &item.ResourceId,
-				Name:       &item.Name,
-				Rating:     &item.Rating,
-				ETime:      &item.Etime,
-				Message:    &item.Message,
-				CreateTime: &t,
-			})
+			for _, resid := range item.ResourceId {
+				d = append(d, models.OrmAuditLog{
+					Eid:        &uuid,
+					UserId:     &item.UserID,
+					Account:    &item.Account,
+					SourceIp:   &item.SourceIP,
+					Service:    &data.Service,
+					ResourceId: &resid,
+					Name:       &item.Name,
+					Rating:     &item.Rating,
+					ETime:      &item.Etime,
+					Message:    &item.Message,
+					CreateTime: &t,
+				})
+			}
 		}
 		if err := models.InstAuditLog(d); err != nil {
 			hlog.Error("Event creation failure, ", err)
