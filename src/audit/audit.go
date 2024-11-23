@@ -21,7 +21,7 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		var data ReqCreateAudLogRaw
 		if err := json.Unmarshal(raw, &data); err != nil {
 			hlog.Warn("json Unmarshal err", err)
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Insert data failed", ""))
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid request data.", ""))
 			return
 		}
 		if len(data.Events) > 100 {
@@ -35,14 +35,31 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		d := make([]models.OrmAuditLog, 0)
 		for _, item := range data.Events {
 			uuid := uuid4.Uuid4Str()
-			for _, resid := range item.ResourceId {
+			if len(item.ResourceId) > 0 {
+				for _, resid := range item.ResourceId {
+					d = append(d, models.OrmAuditLog{
+						Eid:        &uuid,
+						UserId:     &item.UserID,
+						Account:    &item.Account,
+						SourceIp:   &item.SourceIP,
+						Service:    &data.Service,
+						ResourceId: &resid,
+						Name:       &item.Name,
+						Rating:     &item.Rating,
+						ETime:      &item.Etime,
+						Message:    &item.Message,
+						CreateTime: &t,
+					})
+				}
+			} else {
+				// 没有ResourceId
 				d = append(d, models.OrmAuditLog{
 					Eid:        &uuid,
 					UserId:     &item.UserID,
 					Account:    &item.Account,
 					SourceIp:   &item.SourceIP,
 					Service:    &data.Service,
-					ResourceId: &resid,
+					ResourceId: nil,
 					Name:       &item.Name,
 					Rating:     &item.Rating,
 					ETime:      &item.Etime,
