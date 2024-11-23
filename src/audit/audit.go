@@ -24,9 +24,9 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid request data.", ""))
 			return
 		}
-		if len(data.Events) > 100 {
-			hlog.Warn("More than 20 events uploaded.")
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "The number of events exceeded the upper limit by 100.", ""))
+		if len(data.Events) > 10 {
+			hlog.Warn("More than 10 events uploaded.")
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "The number of events exceeded the upper limit by 10.", ""))
 			return
 		}
 		hlog.Info("Create event service: ", data.Service)
