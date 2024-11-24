@@ -9,8 +9,12 @@ import (
 func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	var alog []OrmAuditLog
 	query := mysql.DB.Model(&OrmAuditLog{}).Order("id DESC")
-	if q.From != 0 && q.To != 0 {
-		query.Where("etime>=? AND etime<=?", q.From, q.To)
+	if q.From != 0 {
+		query.Where("etime>=?", q.From)
+		if q.To != 0 {
+			// 必须有起始时间才能搭配结束时间查询
+			query.Where("etime<=?", q.To)
+		}
 	}
 	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
 	hlog.Infof("query condition: %v", q)

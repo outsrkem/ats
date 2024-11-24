@@ -89,21 +89,27 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			err error
 			q   models.QueryCon
 		)
-		if c.DefaultQuery("from", "") != "" && c.DefaultQuery("to", "") != "" {
-			// from 和 to 要一起使用，否则无效
+		if c.DefaultQuery("from", "") != "" {
+			// from 是使用 to 前提条件，否则to参数无效
 			q.From, err = strToInt64(c.DefaultQuery("from", ""))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 				return
 			}
-			q.To, err = strToInt64(c.DefaultQuery("to", ""))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
-				return
+			if c.DefaultQuery("to", "") != "" {
+				q.To, err = strToInt64(c.DefaultQuery("to", ""))
+				if err != nil {
+					c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+					return
+				}
 			}
 			hlog.Infof("Query Audit Log, from:%v, to:%v", q.From, q.To)
 		}
 
+		if q.From == 0 {
+			// 获取1月之前的时间戳，即默查询2月之内的事件
+			q.From = time.Now().AddDate(0, -2, 0).UnixNano() / 1e6
+		}
 		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))

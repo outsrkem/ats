@@ -22,8 +22,8 @@ func (OrmAuditLog) TableName() string {
 
 // QueryCon 日志查询条件 query 参数
 type QueryCon struct {
-	To       int64
-	From     int64
-	Page     int
 	PageSize int
+	Page     int
+	From     int64 // 起始时间
+	To       int64 // 结束时间
 }
