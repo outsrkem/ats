@@ -165,3 +165,41 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", payload))
 	}
 }
+
+// TracesExtras 查询日志扩展数据
+func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
+	return func(ctx context.Context, c *app.RequestContext) {
+		// 查询待修改策略
+		exid := c.Param("exid")
+		if !common.CheckUuId(exid) {
+			hlog.Error("Invalid policy id format ", exid)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid extras id format.", ""))
+			return
+		}
+		result, err := models.FindAlogExtras(exid)
+		if err != nil {
+			hlog.Error("Database query failure, err: ", err)
+			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))
+			return
+		}
+		hlog.Debug(result)
+		var _reqdata interface{}
+		if err := json.Unmarshal([]byte(*result.Reqdata), &_reqdata); err != nil {
+			hlog.Error("json.Unmarshal ", err)
+		}
+		type ReqData struct {
+			Id      string      `json:"id"`
+			Reqdata interface{} `json:"reqdata"`
+			Uagent  string      `json:"uagent"`
+		}
+		extras := ReqData{
+			Id:      *result.Exid,
+			Reqdata: _reqdata,
+			Uagent:  *result.Uagent,
+		}
+		payload := map[string]interface{}{
+			"extras": extras,
+		}
+		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", payload))
+	}
+}
