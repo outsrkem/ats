@@ -20,6 +20,8 @@ type ReqCreateAudLogRaw struct {
 		Rating     string   `json:"rating"`
 		Etime      int64    `json:"etime"`
 		Message    string   `json:"message"`
+		Reqdata    string   `json:"reqdata"`
+		Uagent     string   `json:"uagent"` // user-agent
 	} `json:"events"`
 }
 
@@ -34,5 +36,6 @@ type ResTracesAuditLog struct {
 	Rating     *string `json:"rating"`
 	ETime      *int64  `json:"etime"`
 	Message    *string `json:"message"`
+	Extras     *string `json:"extras"`
 	CreateTime *int64  `json:"create_time"`
 }

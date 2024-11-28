@@ -4,6 +4,7 @@ import (
 	"ats/src/database/mysql"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"gorm.io/gorm"
 )
 
 func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
@@ -21,6 +22,19 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	return alog, err
 }
 
-func InstAuditLog(d []OrmAuditLog) error {
-	return mysql.DB.Create(&d).Error
+func InstAuditLog(extras *OrmExtras, alog []OrmAuditLog) error {
+	// 使用自动事务
+	err := mysql.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(extras).Error; err != nil {
+			hlog.Error("Transaction rollback. err: ", err)
+			return err
+		}
+		b := tx.Create(&alog)
+		if b.Error != nil {
+			hlog.Error("Transaction rollback. err: ", b.Error)
+			return b.Error
+		}
+		return nil
+	})
+	return err
 }

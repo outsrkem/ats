@@ -11,13 +11,25 @@ type OrmAuditLog struct {
 	ResourceId *string `gorm:"column:resource_id"`
 	Name       *string `gorm:"column:name"`
 	Rating     *string `gorm:"column:rating"`
-	ETime      *int64  `gorm:"column:etime"`
 	Message    *string `gorm:"column:message"`
+	Extras     *string `gorm:"column:extras"`
+	ETime      *int64  `gorm:"column:etime"`
 	CreateTime *int64  `gorm:"column:create_time"`
 }
 
 func (OrmAuditLog) TableName() string {
 	return "auditlog"
+}
+
+type OrmExtras struct {
+	Id      *int64  `gorm:"column:id"`
+	Exid    *string `gorm:"column:exid"`
+	Reqdata *string `gorm:"column:reqdata"`
+	Uagent  *string `gorm:"column:uagent"`
+}
+
+func (OrmExtras) TableName() string {
+	return "extras"
 }
 
 // QueryCon 日志查询条件 query 参数
