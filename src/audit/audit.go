@@ -32,43 +32,53 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		hlog.Info("Create event service: ", data.Service)
 		hlog.Infof("The number of created events is %d", len(data.Events))
 		t := time.Now().UnixNano() / 1e6
-		d := make([]models.OrmAuditLog, 0)
-		for _, item := range data.Events {
-			uuid := uuid4.Uuid4Str()
-			if len(item.ResourceId) > 0 {
-				for _, resid := range item.ResourceId {
-					d = append(d, models.OrmAuditLog{
-						Eid:        &uuid,
-						UserId:     &item.UserID,
-						Account:    &item.Account,
-						SourceIp:   &item.SourceIP,
+		alog := make([]models.OrmAuditLog, 0)
+		extras := models.OrmExtras{}
+		for _, event := range data.Events {
+			exid := uuid4.Uuid4Str()
+			extras.Exid = &exid
+			extras.Reqdata = &event.Reqdata
+			extras.Uagent = &event.Uagent
+			if len(event.ResourceId) > 0 {
+				for _, resid := range event.ResourceId {
+					eventId := uuid4.Uuid4Str()
+					alog = append(alog, models.OrmAuditLog{
+						Eid:        &eventId,
+						UserId:     &event.UserID,
+						Account:    &event.Account,
+						SourceIp:   &event.SourceIP,
 						Service:    &data.Service,
 						ResourceId: &resid,
-						Name:       &item.Name,
-						Rating:     &item.Rating,
-						ETime:      &item.Etime,
-						Message:    &item.Message,
+						Name:       &event.Name,
+						Rating:     &event.Rating,
+						ETime:      &event.Etime,
+						Message:    &event.Message,
+						Extras:     &exid,
 						CreateTime: &t,
 					})
 				}
 			} else {
 				// 没有ResourceId
-				d = append(d, models.OrmAuditLog{
-					Eid:        &uuid,
-					UserId:     &item.UserID,
-					Account:    &item.Account,
-					SourceIp:   &item.SourceIP,
+				eventId := uuid4.Uuid4Str()
+				alog = append(alog, models.OrmAuditLog{
+					Eid:        &eventId,
+					UserId:     &event.UserID,
+					Account:    &event.Account,
+					SourceIp:   &event.SourceIP,
 					Service:    &data.Service,
 					ResourceId: nil,
-					Name:       &item.Name,
-					Rating:     &item.Rating,
-					ETime:      &item.Etime,
-					Message:    &item.Message,
+					Name:       &event.Name,
+					Rating:     &event.Rating,
+					ETime:      &event.Etime,
+					Message:    &event.Message,
+					Extras:     &exid,
 					CreateTime: &t,
 				})
 			}
 		}
-		if err := models.InstAuditLog(d); err != nil {
+		hlog.Debugf("%+v", extras)
+		hlog.Debugf("%+v", alog)
+		if err := models.InstAuditLog(&extras, alog); err != nil {
 			hlog.Error("Event creation failure, ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
 			return
@@ -142,6 +152,7 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				Rating:     item.Rating,
 				ETime:      item.ETime,
 				Message:    item.Message,
+				Extras:     item.Extras,
 				CreateTime: item.CreateTime,
 			}
 			alogs = append(alogs, a)
