@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// SelectAuditLog 查询日志列表
 func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	var alog []OrmAuditLog
 	query := mysql.DB.Model(&OrmAuditLog{}).Order("id DESC")
@@ -22,6 +23,7 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	return alog, err
 }
 
+// InstAuditLog 保存日志
 func InstAuditLog(extras *OrmExtras, alog []OrmAuditLog) error {
 	// 使用自动事务
 	err := mysql.DB.Transaction(func(tx *gorm.DB) error {
@@ -37,4 +39,11 @@ func InstAuditLog(extras *OrmExtras, alog []OrmAuditLog) error {
 		return nil
 	})
 	return err
+}
+
+// FindAlogExtras 查询日志扩展数据
+func FindAlogExtras(exid string) (*OrmExtras, error) {
+	var extras OrmExtras
+	query := mysql.DB.Where("exid=?", exid).Find(&extras)
+	return &extras, query.Error
 }
