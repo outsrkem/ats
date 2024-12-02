@@ -9,6 +9,7 @@ type httpCli struct {
 	Body    *bytes.Buffer
 }
 
+// ReqCreateAudLogRaw 上传日志请求体
 type ReqCreateAudLogRaw struct {
 	Service string `json:"service"`
 	Events  []struct {
@@ -22,14 +23,16 @@ type ReqCreateAudLogRaw struct {
 		Message    string   `json:"message"`
 		Reqdata    string   `json:"reqdata"`
 		Uagent     string   `json:"uagent"` // user-agent
+		Method     string   `json:"method"`
+		ReqUrl     string   `json:"requrl"`
 	} `json:"events"`
 }
 
+// ResTracesAuditLog 返回的日志列表
 type ResTracesAuditLog struct {
 	Eid        *string `json:"eid"`
 	UserID     *string `json:"user_id"`
 	Account    *string `json:"account"`
-	SourceIP   *string `json:"source_ip"`
 	Service    *string `json:"service"`
 	ResourceId *string `json:"resource_id"`
 	Name       *string `json:"name"`

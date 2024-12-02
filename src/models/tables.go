@@ -6,7 +6,6 @@ type OrmAuditLog struct {
 	Eid        *string `gorm:"column:eid"`
 	UserId     *string `gorm:"column:user_id"`
 	Account    *string `gorm:"column:account"`
-	SourceIp   *string `gorm:"column:source_ip"`
 	Service    *string `gorm:"column:service"`
 	ResourceId *string `gorm:"column:resource_id"`
 	Name       *string `gorm:"column:name"`
@@ -22,10 +21,13 @@ func (OrmAuditLog) TableName() string {
 }
 
 type OrmExtras struct {
-	Id      *int64  `gorm:"column:id"`
-	Exid    *string `gorm:"column:exid"`
-	Reqdata *string `gorm:"column:reqdata"`
-	Uagent  *string `gorm:"column:uagent"`
+	Id       *int64  `gorm:"column:id"`
+	Exid     *string `gorm:"column:exid"`
+	Reqdata  *string `gorm:"column:reqdata"`
+	Uagent   *string `gorm:"column:uagent"`
+	SourceIp *string `gorm:"column:source_ip"`
+	Method   *string `gorm:"column:method"`
+	ReqUrl   *string `gorm:"column:requrl"`
 }
 
 func (OrmExtras) TableName() string {

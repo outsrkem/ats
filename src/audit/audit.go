@@ -39,14 +39,17 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			extras.Exid = &exid
 			extras.Reqdata = &event.Reqdata
 			extras.Uagent = &event.Uagent
+			extras.SourceIp = &event.SourceIP
+			extras.Method = &event.Method
+			extras.ReqUrl = &event.ReqUrl
 			if len(event.ResourceId) > 0 {
 				for _, resid := range event.ResourceId {
 					eventId := uuid4.Uuid4Str()
 					alog = append(alog, models.OrmAuditLog{
-						Eid:        &eventId,
-						UserId:     &event.UserID,
-						Account:    &event.Account,
-						SourceIp:   &event.SourceIP,
+						Eid:     &eventId,
+						UserId:  &event.UserID,
+						Account: &event.Account,
+
 						Service:    &data.Service,
 						ResourceId: &resid,
 						Name:       &event.Name,
@@ -64,7 +67,6 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 					Eid:        &eventId,
 					UserId:     &event.UserID,
 					Account:    &event.Account,
-					SourceIp:   &event.SourceIP,
 					Service:    &data.Service,
 					ResourceId: nil,
 					Name:       &event.Name,
@@ -145,7 +147,6 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				Eid:        item.UserId,
 				UserID:     item.UserId,
 				Account:    item.Account,
-				SourceIP:   item.SourceIp,
 				Service:    item.Service,
 				ResourceId: item.ResourceId,
 				Name:       item.Name,
@@ -188,15 +189,21 @@ func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 			hlog.Error("json.Unmarshal ", err)
 			_reqdata = *result.Reqdata
 		}
+
+		// 日志扩展信息
 		type ReqData struct {
-			Id      string      `json:"id"`
-			Reqdata interface{} `json:"reqdata"`
-			Uagent  string      `json:"uagent"`
+			Reqdata  *interface{} `json:"reqdata"`
+			Uagent   *string      `json:"uagent"`
+			SourceIp *string      `json:"source_ip"`
+			Method   *string      `json:"method"`
+			ReqUrl   *string      `json:"requrl"`
 		}
 		extras := ReqData{
-			Id:      *result.Exid,
-			Reqdata: _reqdata,
-			Uagent:  *result.Uagent,
+			Reqdata:  &_reqdata,
+			Uagent:   result.Uagent,
+			SourceIp: result.SourceIp,
+			Method:   result.Method,
+			ReqUrl:   result.ReqUrl,
 		}
 		payload := map[string]interface{}{
 			"extras": extras,
