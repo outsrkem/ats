@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ats/src/audit"
 	"ats/src/config"
 	"ats/src/database/mysql"
 	"ats/src/route"
@@ -20,6 +21,10 @@ func main() {
 	cfg := config.InitConfig()
 	app := &cfg.Ats.App
 	mysql.InitDB(&cfg.Ats.Database) // 连接数据库MySql
+
+	if err := audit.InitLogCache(); err != nil {
+		hlog.Errorf("Failed to init log type cache: %v", err)
+	}
 
 	hlog.Info("start server")
 	h := server.Default(server.WithHostPorts(app.Bind), server.WithExitWaitTime(0*time.Second))

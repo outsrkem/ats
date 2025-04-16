@@ -3,13 +3,7 @@ name: Devops CI
 on:
   push:
     branches:
-      - "build_*"
-  pull_request:
-    branches:
-      - "master"
-    types:
-      - opened
-      - closed
+      - "build_test_*"
 
 env:
   IMAGE_VERSION: 0.0.1-alpha.ci

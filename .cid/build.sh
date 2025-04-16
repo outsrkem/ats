@@ -1,14 +1,16 @@
 #!/bin/bash
-app="ats"
-[ -d output ] || mkdir output
-# 比对项目文件中引入的依赖与go.mod进行比对,清理不需要的依赖,并且更新go.sum文件。
-go mod tidy
-# 将项目的所有依赖导出至vendor目录
-go mod vendor
-# 构建
-LD_PATH="ats/src/config"
-APP_VERSION="0.0.1"
-GO_VERSION=$(go version |awk '{print $3}')
-REVISION="master"
-LD_FLAGS="-X $LD_PATH.Version=${APP_VERSION} -X $LD_PATH.GoVersion=${GO_VERSION} -X $LD_PATH.GitCommit=${REVISION}"
-go build  -trimpath -ldflags="-s -w $LD_FLAGS" -gcflags='all=-l -N' -o output/$app src/main/main.go
+
+app=ats
+version=${1:-build_0}
+commit=`git rev-parse HEAD`
+
+repository='swr.cn-north-1.myhuaweicloud.com/onge'
+
+docker build \
+--build-arg UIAS_REVISION=${commit} \
+--build-arg UIAS_VERSION=${version} \
+--label org.opencontainers.image.revision=${commit} \
+--label org.opencontainers.image.version=${version} \
+--tag ${repository}/${app}:${version} .
+
+docker push ${repository}/${app}:${version}

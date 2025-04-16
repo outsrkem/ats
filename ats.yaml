@@ -8,6 +8,6 @@ ats:
     user: "service"
     passwd: "725e134ad943e3122132c66e648c0dc0325d792c3b9d3b49f80cf9b5a2df8b"
   uias:
-    endpoint: "https://uias-devops.endpoint.outsrkem.top:30078"
+    endpoint: "https://uias.apilocalvm.outsrkem.top:30078"
   log:
     level: "INFO"

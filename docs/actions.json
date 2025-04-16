@@ -9,10 +9,18 @@
     },
     {
         "actionInfo": {
-            "name": "ats:traces:list",
+            "name": "ats:traces:listAlog",
             "actionGroup": "ListOnly",
             "description": "查询事件列表",
             "status": "enabled"
+        }
+    },
+    {
+        "actionInfo": {
+            "name": "ats:traces:getExtras",
+            "group": "ReadOnly",
+            "description": "查询日志扩展数据",
+            "status": "enable"
         }
     }
 ]

@@ -7,6 +7,8 @@ import (
 	"ats/src/pkg/uuid4"
 	"context"
 	"encoding/json"
+	"errors"
+	"gorm.io/gorm"
 	"net/http"
 	"time"
 
@@ -46,10 +48,9 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				for _, resid := range event.ResourceId {
 					eventId := uuid4.Uuid4Str()
 					alog = append(alog, models.OrmAuditLog{
-						Eid:     &eventId,
-						UserId:  &event.UserID,
-						Account: &event.Account,
-
+						Eid:        &eventId,
+						UserId:     &event.UserID,
+						Account:    &event.Account,
 						Service:    &data.Service,
 						ResourceId: &resid,
 						Name:       &event.Name,
@@ -149,7 +150,7 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				Account:    item.Account,
 				Service:    item.Service,
 				ResourceId: item.ResourceId,
-				Name:       item.Name,
+				Name:       GetElogName(item.Name, "zhcn"),
 				Rating:     item.Rating,
 				ETime:      item.ETime,
 				Message:    item.Message,
@@ -170,19 +171,26 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 // TracesExtras 查询日志扩展数据
 func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
+		// TODO id没有报500
 		// 查询待修改策略
 		exid := c.Param("exid")
-		if !common.CheckUuId(exid) {
+		if ok := common.CheckUuId(exid); !ok {
 			hlog.Error("Invalid policy id format ", exid)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid extras id format.", ""))
 			return
 		}
+
 		result, err := models.FindAlogExtras(exid)
 		if err != nil {
 			hlog.Error("Database query failure, err: ", err)
-			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusNotFound, answer.ResBody(common.EcodeError, err.Error(), ""))
+			} else {
+				c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, err.Error(), ""))
+			}
 			return
 		}
+
 		hlog.Debug(result)
 		var _reqdata interface{}
 		if err := json.Unmarshal([]byte(*result.Reqdata), &_reqdata); err != nil {

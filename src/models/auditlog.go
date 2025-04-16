@@ -44,6 +44,6 @@ func InstAuditLog(extras *OrmExtras, alog []OrmAuditLog) error {
 // FindAlogExtras 查询日志扩展数据
 func FindAlogExtras(exid string) (*OrmExtras, error) {
 	var extras OrmExtras
-	query := mysql.DB.Where("exid=?", exid).Find(&extras)
+	query := mysql.DB.Where("exid=?", exid).First(&extras)
 	return &extras, query.Error
 }
