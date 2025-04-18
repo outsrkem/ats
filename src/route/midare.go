@@ -108,3 +108,10 @@ func apc(action string) app.HandlerFunc {
 		c.Next(ctx)
 	}
 }
+
+// Check Account Permissions
+func cap() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		c.Next(ctx)
+	}
+}

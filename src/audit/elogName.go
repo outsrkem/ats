@@ -2,8 +2,9 @@ package audit
 
 import (
 	"ats/src/models"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"sync"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 type logName struct {
