@@ -2,18 +2,19 @@ package audit
 
 import (
 	"ats/src/models"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"sync"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 type logName struct {
-	mu sync.RWMutex
+	// mu sync.RWMutex
 	zh string
 	en string
 }
 
 var (
-	logCache    = make(map[string]logName, 50000)
+	logCache    = make(map[string]*logName, 50000)
 	cacheMutex  sync.RWMutex
 	initialized bool
 )
@@ -46,7 +47,7 @@ func InitLogCache() error {
 		hlog.Error(err.Error())
 	}
 	for _, lt := range logTypes {
-		logCache[*lt.Name] = logName{
+		logCache[*lt.Name] = &logName{
 			zh: *lt.Zhcn,
 			en: *lt.Enus,
 		}

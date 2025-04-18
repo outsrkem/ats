@@ -5,6 +5,7 @@ import (
 	"ats/src/pkg/answer"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -32,15 +33,19 @@ func apc(action string) app.HandlerFunc {
 		}
 		var raw actionRaw
 		raw.Uias.Action = action
-		rawJson, err := json.Marshal(raw)
+		rawbyte, err := json.Marshal(raw)
 		if err != nil {
-			hlog.Errorf("Error marshaling audit log: %v", err)
+			hlog.Errorf("Raw Marshal Error log: %v", err)
+			hlog.Errorf("a %+v", raw)
 			c.Abort()
 			return
 		}
 
-		url := config.Cfg.Ats.Uias.Endpoint + "/v1/uias/action/check"
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(rawJson))
+		uiascfg := config.Cfg.Ats.Uias
+		path := "/v1/uias/action/check" // token校验权限接口
+		url := uiascfg.Endpoint + path
+
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(rawbyte))
 		if err != nil {
 			hlog.Errorf("Error creating request: %v", err)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
@@ -51,7 +56,8 @@ func apc(action string) app.HandlerFunc {
 		req.Header.Set("X-Auth-Token", token)
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-		client := &http.Client{Timeout: 30 * time.Second}
+		transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: uiascfg.SkipTlsVerify}}
+		client := &http.Client{Timeout: 30 * time.Second, Transport: transport}
 		resp, err := client.Do(req)
 		if err != nil {
 			hlog.Errorf("Error sending req log: %v", err)
@@ -105,6 +111,13 @@ func apc(action string) app.HandlerFunc {
 		c.Set("userId", result.Payload.User.ID)
 		c.Set("account", result.Payload.User.Name.Account)
 		hlog.Debug("end check action")
+		c.Next(ctx)
+	}
+}
+
+// Check Account Permissions
+func cap() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
 		c.Next(ctx)
 	}
 }
