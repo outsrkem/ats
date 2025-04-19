@@ -7,7 +7,7 @@ import (
 )
 
 const crontab = "0 * * * *"
-const daysToDelete = 10 // 删除N天前的记录
+const daysToDelete = 2 // 删除N天前的记录
 
 func StartClean() {
 	hlog.Info("Scheduled task start")
