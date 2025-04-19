@@ -30,7 +30,8 @@ type Database struct {
 }
 
 type Uias struct {
-	Endpoint string `yaml:"endpoint"`
+	Endpoint      string `yaml:"endpoint"`
+	SkipTlsVerify bool   `yaml:"SkipTlsVerify"`
 }
 
 type Log struct {
