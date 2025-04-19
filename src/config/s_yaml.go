@@ -13,8 +13,9 @@ type Config struct {
 type Ats struct {
 	App      App      `yaml:"app"`
 	Database Database `yaml:"database"`
-	Log      Log      `yaml:"log"`
 	Uias     Uias     `yaml:"uias"`
+	Cron     Cron     `yaml:"cron"`
+	Log      Log      `yaml:"log"`
 }
 
 type App struct {
@@ -31,6 +32,13 @@ type Database struct {
 
 type Uias struct {
 	Endpoint string `yaml:"endpoint"`
+}
+
+type Cron struct {
+	Cleanlog struct {
+		Time string `yaml:"time"`
+		Days int    `yaml:"days"`
+	} `yaml:"cleanlog"`
 }
 
 type Log struct {

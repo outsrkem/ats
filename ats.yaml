@@ -9,5 +9,9 @@ ats:
     passwd: "725e134ad943e3122132c66e648c0dc0325d792c3b9d3b49f80cf9b5a2df8b"
   uias:
     endpoint: "https://uias.apilocalvm.outsrkem.top:30078"
+  cron:
+    cleanlog:
+      time: "03 3 * * *"
+      days: 10
   log:
     level: "INFO"

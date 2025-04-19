@@ -2,8 +2,9 @@ package audit
 
 import (
 	"ats/src/models"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"sync"
+
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 type logName struct {
@@ -19,15 +20,15 @@ var (
 )
 
 // GetElogName 获取日志名称
-func GetElogName(logName *string, lang string) *string {
+func GetElogName(logName string, lang string) string {
 	cacheMutex.RLock()
 	defer cacheMutex.RUnlock()
-	if names, exists := logCache[*logName]; exists {
+	if names, exists := logCache[logName]; exists {
 		switch lang {
 		case "zhcn":
-			return &names.zh
+			return names.zh
 		case "enus":
-			return &names.en
+			return names.en
 		}
 	}
 	return logName

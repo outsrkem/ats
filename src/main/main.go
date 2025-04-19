@@ -2,6 +2,7 @@ package main
 
 import (
 	"ats/src/audit"
+	"ats/src/autotask"
 	"ats/src/config"
 	"ats/src/database/mysql"
 	"ats/src/route"
@@ -25,6 +26,8 @@ func main() {
 	if err := audit.InitLogCache(); err != nil {
 		hlog.Errorf("Failed to init log type cache: %v", err)
 	}
+
+	autotask.StartClean()
 
 	hlog.Info("start server")
 	h := server.Default(server.WithHostPorts(app.Bind), server.WithExitWaitTime(0*time.Second))

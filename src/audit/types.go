@@ -52,15 +52,15 @@ type ReqCreateAudLogRaw struct {
 
 // ResTracesAuditLog 返回的日志列表
 type ResTracesAuditLog struct {
-	Eid        *string `json:"eid"`
-	UserID     *string `json:"user_id"`
-	Account    *string `json:"account"`
-	Service    *string `json:"service"`
-	ResourceId *string `json:"resource_id"`
-	Name       *string `json:"name"`
-	Rating     *string `json:"rating"`
-	ETime      *int64  `json:"etime"`
-	Message    *string `json:"message"`
-	Extras     *string `json:"extras"`
-	CreateTime *int64  `json:"create_time"`
+	Eid        string `json:"eid"`
+	UserID     string `json:"user_id"`
+	Account    string `json:"account"`
+	Service    string `json:"service"`
+	ResourceId string `json:"resource_id"`
+	Name       string `json:"name"`
+	Rating     string `json:"rating"`
+	ETime      int64  `json:"etime"`
+	Message    string `json:"message"`
+	Extras     string `json:"extras"`
+	CreateTime int64  `json:"create_time"`
 }

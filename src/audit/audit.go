@@ -8,13 +8,64 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"gorm.io/gorm"
 	"net/http"
 	"time"
+
+	"gorm.io/gorm"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
+
+// processEvents 处理事件数据
+func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmAuditLog, []*models.OrmExtras) {
+	supeve := make([]*models.OrmSupEve, 0)
+	eventAlog := make([]*models.OrmAuditLog, 0)
+	extras := make([]*models.OrmExtras, 0)
+	t := time.Now().UnixMilli()
+	for _, event := range data.Events {
+		seid := uuid4.Uuid4Str()
+		supeve = append(supeve, &models.OrmSupEve{
+			Seid:       seid,
+			Etime:      event.Etime,
+			CreateTime: t,
+		})
+		exid := uuid4.Uuid4Str()
+		extras = append(extras, &models.OrmExtras{
+			Seid:     seid,
+			Exid:     exid,
+			Reqdata:  event.Reqdata,
+			Uagent:   event.Uagent,
+			SourceIp: event.SourceIP,
+			Method:   event.Method,
+			ReqUrl:   event.ReqUrl,
+		})
+		baseEvent := models.OrmAuditLog{
+			Seid:    seid,
+			UserId:  event.UserID,
+			Account: event.Account,
+			Service: data.Service,
+			Name:    event.Name,
+			Rating:  event.Rating,
+			Message: event.Message,
+			Extras:  exid,
+			ETime:   event.Etime,
+		}
+		if len(event.ResourceId) > 0 {
+			for _, v := range event.ResourceId {
+				_event := baseEvent
+				_event.Eid = uuid4.Uuid4Str()
+				_event.ResourceId = v
+				eventAlog = append(eventAlog, &_event)
+			}
+		} else {
+			_event := baseEvent
+			_event.Eid = uuid4.Uuid4Str()
+			eventAlog = append(eventAlog, &_event)
+		}
+	}
+	return supeve, eventAlog, extras
+}
 
 // SaveAuditLog 保存审计日志
 func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
@@ -33,59 +84,18 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 		hlog.Info("Create event service: ", data.Service)
 		hlog.Infof("The number of created events is %d", len(data.Events))
-		t := time.Now().UnixNano() / 1e6
-		alog := make([]models.OrmAuditLog, 0)
-		extras := models.OrmExtras{}
-		for _, event := range data.Events {
-			exid := uuid4.Uuid4Str()
-			extras.Exid = &exid
-			extras.Reqdata = &event.Reqdata
-			extras.Uagent = &event.Uagent
-			extras.SourceIp = &event.SourceIP
-			extras.Method = &event.Method
-			extras.ReqUrl = &event.ReqUrl
-			if len(event.ResourceId) > 0 {
-				for _, resid := range event.ResourceId {
-					eventId := uuid4.Uuid4Str()
-					alog = append(alog, models.OrmAuditLog{
-						Eid:        &eventId,
-						UserId:     &event.UserID,
-						Account:    &event.Account,
-						Service:    &data.Service,
-						ResourceId: &resid,
-						Name:       &event.Name,
-						Rating:     &event.Rating,
-						ETime:      &event.Etime,
-						Message:    &event.Message,
-						Extras:     &exid,
-						CreateTime: &t,
-					})
-				}
-			} else {
-				// 没有ResourceId
-				eventId := uuid4.Uuid4Str()
-				alog = append(alog, models.OrmAuditLog{
-					Eid:        &eventId,
-					UserId:     &event.UserID,
-					Account:    &event.Account,
-					Service:    &data.Service,
-					ResourceId: nil,
-					Name:       &event.Name,
-					Rating:     &event.Rating,
-					ETime:      &event.Etime,
-					Message:    &event.Message,
-					Extras:     &exid,
-					CreateTime: &t,
-				})
-			}
-		}
-		hlog.Debugf("%+v", extras)
-		hlog.Debugf("%+v", alog)
-		if err := models.InstAuditLog(&extras, alog); err != nil {
+
+		supeve, eventAlog, extras := processEvents(data)
+		hlog.Debugf("supeve: %+v", supeve)
+		hlog.Debugf("extras: %+v", extras)
+		hlog.Debugf("eventAlog: %+v", eventAlog)
+
+		if err := models.InstAuditLog(supeve, extras, eventAlog); err != nil {
 			hlog.Error("Event creation failure, ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
 			return
 		}
+
 		hlog.Info("Event creation success.")
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", ""))
 	}
@@ -93,7 +103,7 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 
 // TracesAuditLog 查询审计日志列表
 // Parameter from int64: 事件起始时间,包含该时间
-// Parameter to int64: 事件截至事件,包含该时间
+// Parameter to int64: 事件截至事件,包含该时间，有to时必须有from，否则to无效
 // Parameter page int:
 // Parameter page_size int:
 func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
@@ -155,7 +165,6 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				ETime:      item.ETime,
 				Message:    item.Message,
 				Extras:     item.Extras,
-				CreateTime: item.CreateTime,
 			}
 			alogs = append(alogs, a)
 		}
@@ -171,7 +180,6 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 // TracesExtras 查询日志扩展数据
 func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
-		// TODO id没有报500
 		// 查询待修改策略
 		exid := c.Param("exid")
 		if ok := common.CheckUuId(exid); !ok {
@@ -193,18 +201,18 @@ func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 
 		hlog.Debug(result)
 		var _reqdata interface{}
-		if err := json.Unmarshal([]byte(*result.Reqdata), &_reqdata); err != nil {
+		if err := json.Unmarshal([]byte(result.Reqdata), &_reqdata); err != nil {
 			hlog.Error("json.Unmarshal ", err)
-			_reqdata = *result.Reqdata
+			_reqdata = result.Reqdata
 		}
 
 		// 日志扩展信息
 		type ReqData struct {
-			Reqdata  *interface{} `json:"reqdata"`
-			Uagent   *string      `json:"uagent"`
-			SourceIp *string      `json:"source_ip"`
-			Method   *string      `json:"method"`
-			ReqUrl   *string      `json:"requrl"`
+			Reqdata  interface{} `json:"reqdata"`
+			Uagent   string      `json:"uagent"`
+			SourceIp string      `json:"source_ip"`
+			Method   string      `json:"method"`
+			ReqUrl   string      `json:"requrl"`
 		}
 		extras := ReqData{
 			Reqdata:  &_reqdata,
