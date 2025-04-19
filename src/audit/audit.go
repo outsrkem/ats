@@ -34,10 +34,12 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		hlog.Info("Create event service: ", data.Service)
 		hlog.Infof("The number of created events is %d", len(data.Events))
 		t := time.Now().UnixNano() / 1e6
-		alog := make([]models.OrmAuditLog, 0)
+		seid := uuid4.Uuid4Str()
+		eventAlog := make([]models.OrmEvent, 0)
 		extras := models.OrmExtras{}
 		for _, event := range data.Events {
 			exid := uuid4.Uuid4Str()
+			extras.Seid = &seid
 			extras.Exid = &exid
 			extras.Reqdata = &event.Reqdata
 			extras.Uagent = &event.Uagent
@@ -47,7 +49,8 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			if len(event.ResourceId) > 0 {
 				for _, resid := range event.ResourceId {
 					eventId := uuid4.Uuid4Str()
-					alog = append(alog, models.OrmAuditLog{
+					eventAlog = append(eventAlog, models.OrmEvent{
+						Seid:       &seid,
 						Eid:        &eventId,
 						UserId:     &event.UserID,
 						Account:    &event.Account,
@@ -64,7 +67,8 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			} else {
 				// 没有ResourceId
 				eventId := uuid4.Uuid4Str()
-				alog = append(alog, models.OrmAuditLog{
+				eventAlog = append(eventAlog, models.OrmEvent{
+					Seid:       &seid,
 					Eid:        &eventId,
 					UserId:     &event.UserID,
 					Account:    &event.Account,
@@ -80,8 +84,12 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			}
 		}
 		hlog.Debugf("%+v", extras)
-		hlog.Debugf("%+v", alog)
-		if err := models.InstAuditLog(&extras, alog); err != nil {
+		hlog.Debugf("%+v", eventAlog)
+		auditlog := models.OrmAuditLog{
+			Seid:       seid,
+			CreateTime: t,
+		}
+		if err := models.InstAuditLog(&extras, eventAlog, &auditlog); err != nil {
 			hlog.Error("Event creation failure, ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
 			return

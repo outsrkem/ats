@@ -1,8 +1,9 @@
 package models
 
-// OrmAuditLog table: auditlog
-type OrmAuditLog struct {
+// OrmEvent table: event
+type OrmEvent struct {
 	Id         *int64  `gorm:"column:id"`
+	Seid       *string `gorm:"column:seid"`
 	Eid        *string `gorm:"column:eid"`
 	UserId     *string `gorm:"column:user_id"`
 	Account    *string `gorm:"column:account"`
@@ -16,12 +17,13 @@ type OrmAuditLog struct {
 	CreateTime *int64  `gorm:"column:create_time"`
 }
 
-func (OrmAuditLog) TableName() string {
-	return "auditlog"
+func (OrmEvent) TableName() string {
+	return "event"
 }
 
 type OrmExtras struct {
 	Id       *int64  `gorm:"column:id"`
+	Seid     *string `gorm:"column:seid"`
 	Exid     *string `gorm:"column:exid"`
 	Reqdata  *string `gorm:"column:reqdata"`
 	Uagent   *string `gorm:"column:uagent"`
@@ -40,4 +42,14 @@ type QueryCon struct {
 	Page     int
 	From     int64 // 起始时间
 	To       int64 // 结束时间
+}
+
+type OrmAuditLog struct {
+	ID         uint32 `gorm:"column:id"`
+	Seid       string `gorm:"column:seid"` // 一批事件id，同一个请求创建的事件为一批事件
+	CreateTime int64  `gorm:"column:create_time"`
+}
+
+func (*OrmAuditLog) TableName() string {
+	return "auditlog"
 }

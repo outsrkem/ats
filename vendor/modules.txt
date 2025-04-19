@@ -1,7 +1,3 @@
-# filippo.io/edwards25519 v1.1.0
-## explicit; go 1.20
-filippo.io/edwards25519
-filippo.io/edwards25519/field
 # github.com/bytedance/go-tagexpr/v2 v2.9.2
 ## explicit; go 1.14
 github.com/bytedance/go-tagexpr/v2
@@ -86,8 +82,8 @@ github.com/cloudwego/netpoll
 # github.com/fsnotify/fsnotify v1.5.4
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
-# github.com/go-sql-driver/mysql v1.8.1
-## explicit; go 1.18
+# github.com/go-sql-driver/mysql v1.7.0
+## explicit; go 1.13
 github.com/go-sql-driver/mysql
 # github.com/golang/protobuf v1.5.0
 ## explicit; go 1.9
@@ -120,6 +116,9 @@ github.com/klauspost/cpuid/v2
 # github.com/nyaruka/phonenumbers v1.0.55
 ## explicit; go 1.13
 github.com/nyaruka/phonenumbers
+# github.com/robfig/cron/v3 v3.0.1
+## explicit; go 1.12
+github.com/robfig/cron/v3
 # github.com/satori/go.uuid v1.2.0
 ## explicit
 github.com/satori/go.uuid
@@ -157,7 +156,7 @@ golang.org/x/arch/x86/x86asm
 # golang.org/x/sys v0.5.0
 ## explicit; go 1.17
 golang.org/x/sys/unix
-# golang.org/x/text v0.20.0
+# golang.org/x/text v0.14.0
 ## explicit; go 1.18
 golang.org/x/text/cases
 golang.org/x/text/internal
