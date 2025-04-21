@@ -145,17 +145,17 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 
 		var count int64
-		row, err := models.SelectAuditLog(q, &count) // 查询日志
+		result, err := models.SelectAuditLog(q, &count) // 查询日志
 		if err != nil {
 			hlog.Error("Database query failure, err: ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))
 			return
 		}
 
-		alogs := make([]ResTracesAuditLog, 0)
-		for _, item := range row {
-			a := ResTracesAuditLog{
-				Eid:        item.UserId,
+		alogs := make([]ResTracesAuditLog, len(result))
+		for i, item := range result {
+			alogs[i] = ResTracesAuditLog{
+				Eid:        item.Eid,
 				UserID:     item.UserId,
 				Account:    item.Account,
 				Service:    item.Service,
@@ -166,8 +166,8 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 				Message:    item.Message,
 				Extras:     item.Extras,
 			}
-			alogs = append(alogs, a)
 		}
+
 		pageInfo := answer.SetPageInfo(q.PageSize, q.Page, count)
 		payload := map[string]interface{}{
 			"items":     alogs,
