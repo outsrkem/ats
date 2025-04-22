@@ -45,7 +45,7 @@ type QueryCon struct {
 
 type OrmSupEve struct {
 	ID         uint32 `gorm:"column:id"`
-	Seid       string `gorm:"column:seid"` // 一批事件id，同一个请求创建的事件为一批事件
+	Seid       string `gorm:"column:seid"` // 一批事件id
 	Etime      int64  `gorm:"column:etime"`
 	CreateTime int64  `gorm:"column:create_time"`
 }

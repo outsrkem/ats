@@ -5,12 +5,12 @@ import (
 )
 
 type OrmLogName struct {
-	ID         *int64  `gorm:"column:id;primaryKey;"`
-	Name       *string `gorm:"column:name;"`
-	Zhcn       *string `gorm:"column:zhcn;"`
-	Enus       *string `gorm:"column:enus;"`
-	CreateTime *int64  `gorm:"column:create_time;"`
-	UpdateTime *int64  `gorm:"column:update_time;"`
+	ID         uint32 `gorm:"column:id;primaryKey;"`
+	Name       string `gorm:"column:name;"`
+	Zhcn       string `gorm:"column:zhcn;"`
+	Enus       string `gorm:"column:enus;"`
+	CreateTime int64  `gorm:"column:create_time;"`
+	UpdateTime int64  `gorm:"column:update_time;"`
 }
 
 func (*OrmLogName) TableName() string {

@@ -2,7 +2,7 @@
 
 ### Audit Traces Server
 
-### 组件依赖
+### 组件构成
 
 - MySQL
 - go
@@ -10,6 +10,7 @@
 
 ### 前提条件
 
+- UIAS服务
 - 提前安装好docker
 - 提前安装好mysql
 
@@ -26,7 +27,7 @@ CREATE USER 'ats'@'%' identified by '123456##ats';
 GRANT ALL ON atsdb.* TO 'ats'@'%';
 
 -- 修改密码
-SET PASSWORD FOR 'ats'@'%' = PASSWORD('123456');
+SET PASSWORD FOR 'ats'@'%' = '12345678';
 ```
 
 ### 初始化表和数据
@@ -39,3 +40,6 @@ mysql -u ats -p atsdb < db/atsdb.sql
 
 ### 构建镜像
 
+```
+./.cid/build.sh
+```

@@ -17,6 +17,13 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
+// 检查事件时间的有效性
+func checkEtime(etime int64) bool {
+	now := time.Now().UnixMilli()
+	// 在过去的1小时之内
+	return etime > now-3600000 && etime <= now
+}
+
 // processEvents 处理事件数据
 func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmAuditLog, []*models.OrmExtras) {
 	supeve := make([]*models.OrmSupEve, 0)
@@ -84,6 +91,16 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 		hlog.Info("Create event service: ", data.Service)
 		hlog.Infof("The number of created events is %d", len(data.Events))
+
+		for _, event := range data.Events {
+			// 事件时间不符合要求(在过去的1小时之内)
+			if ok := checkEtime(event.Etime); !ok {
+				msg := "The event time does not meet the requirements"
+				hlog.Warnf("%s[%d]", msg, event.Etime)
+				c.JSON(http.StatusUnprocessableEntity, answer.ResBody(common.EcodeError, msg, ""))
+				return
+			}
+		}
 
 		supeve, eventAlog, extras := processEvents(data)
 		hlog.Debugf("supeve: %+v", supeve)
