@@ -67,10 +67,31 @@ func FindAlogExtras(exid string) (*OrmExtras, error) {
 }
 
 func DeleteAuditLog(t int64) (int64, error) {
-	result := mysql.DB.Where("etime<=?", t).Delete(&OrmSupEve{})
-	if result.Error != nil {
-		hlog.Errorf("删除记录时出错: %v\n", result.Error)
-		return 0, result.Error
-	}
-	return result.RowsAffected, nil
+	var rowsAffected int64
+	err := mysql.DB.Transaction(func(tx *gorm.DB) error {
+		var seids []string // 存储筛选出的 seid
+		err := tx.Model(&OrmSupEve{}).Select("seid").Where("etime < ?", t).Find(&seids).Error
+		if err != nil {
+			return err
+		}
+
+		// 删除 OrmSupEve 表中符合条件的记录
+		result := tx.Where("seid IN (?)", seids).Delete(&OrmSupEve{})
+		if result.Error != nil {
+			return result.Error
+		}
+		rowsAffected = result.RowsAffected
+
+		// 删除 OrmAuditLog 表中符合条件的记录
+		if err := tx.Where("seid IN (?)", seids).Delete(&OrmAuditLog{}).Error; err != nil {
+			return err
+		}
+		// 删除 OrmExtras 表中符合条件的记录
+		if err := tx.Where("seid IN (?)", seids).Delete(&OrmExtras{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return rowsAffected, err
 }
