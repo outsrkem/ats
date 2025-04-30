@@ -2,26 +2,34 @@ package autotask
 
 import (
 	"ats/src/config"
+	"ats/src/slog"
 	"time"
 
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/robfig/cron/v3"
 )
 
 func StartClean() {
-	hlog.Info("Scheduled task start")
-	crontab := config.Cfg.Ats.Cron.Cleanlog.Time // * * * * *
+	klog := slog.FromContext(nil)
+	klog.Info("Scheduled task starting...")
+	crontab := config.Cfg.Ats.Cron.Cleanlog.Time
 	if crontab == "" {
 		crontab = "10 3 */3 * *"
-		hlog.Warnf("Cron time is empty, use default %s", crontab)
+		klog.Warn("Cron time is empty, use default.")
 	}
+
+	klog.Infof("Cron time is [%s]", crontab)
+
 	c := cron.New()
 	_, err := c.AddFunc(crontab, func() {
-		hlog.Info("auto clean task. time now date: ", time.Now().Format("2006-01-02 15:04:05"))
+		klog.Info("auto clean task. time now date: ", time.Now().Format(time.DateTime))
 		job1()
 	})
+
 	if err != nil {
-		hlog.Error("auto task error: ", err)
+		klog.Error("auto task error: ", err)
+		return
 	}
+
+	klog.Info("auto clean task start success.")
 	c.Start()
 }

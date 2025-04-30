@@ -5,6 +5,7 @@ import (
 	"ats/src/pkg/answer"
 	"ats/src/pkg/common"
 	"ats/src/pkg/uuid4"
+	"ats/src/slog"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,7 +15,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 // 检查事件时间的有效性
@@ -77,43 +77,44 @@ func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmA
 // SaveAuditLog 保存审计日志
 func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
+		klog := slog.FromContext(c)
 		raw, _ := c.Body()
 		var data ReqCreateAudLogRaw
 		if err := json.Unmarshal(raw, &data); err != nil {
-			hlog.Warn("json Unmarshal err", err)
+			klog.Warn("json Unmarshal err", err)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid request data.", ""))
 			return
 		}
 		if len(data.Events) > 10 {
-			hlog.Warn("More than 10 events uploaded.")
+			klog.Warn("More than 10 events uploaded.")
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "The number of events exceeded the upper limit by 10.", ""))
 			return
 		}
-		hlog.Info("Create event service: ", data.Service)
-		hlog.Infof("The number of created events is %d", len(data.Events))
+		klog.Info("Create event service: ", data.Service)
+		klog.Infof("The number of created events is %d", len(data.Events))
 
 		for _, event := range data.Events {
 			// 事件时间不符合要求(在过去的1小时之内)
 			if ok := checkEtime(event.Etime); !ok {
 				msg := "The event time does not meet the requirements"
-				hlog.Warnf("%s[%d]", msg, event.Etime)
+				klog.Warnf("%s [%d]", msg, event.Etime)
 				c.JSON(http.StatusUnprocessableEntity, answer.ResBody(common.EcodeError, msg, ""))
 				return
 			}
 		}
 
 		supeve, eventAlog, extras := processEvents(data)
-		hlog.Debugf("supeve: %+v", supeve)
-		hlog.Debugf("extras: %+v", extras)
-		hlog.Debugf("eventAlog: %+v", eventAlog)
+		klog.Debugf("supeve: %+v", supeve)
+		klog.Debugf("extras: %+v", extras)
+		klog.Debugf("eventAlog: %+v", eventAlog)
 
-		if err := models.InstAuditLog(supeve, extras, eventAlog); err != nil {
-			hlog.Error("Event creation failure, ", err)
+		if err := models.InstAuditLog(c, supeve, extras, eventAlog); err != nil {
+			klog.Error("Event creation failure, ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
 			return
 		}
 
-		hlog.Info("Event creation success.")
+		klog.Info("Event creation success.")
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", ""))
 	}
 }
@@ -125,6 +126,7 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 // Parameter page_size int:
 func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
+		klog := slog.FromContext(c)
 		var (
 			err error
 			q   models.QueryCon
@@ -133,17 +135,19 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			// from 是使用 to 前提条件，否则to参数无效
 			q.From, err = strToInt64(c.DefaultQuery("from", ""))
 			if err != nil {
+				klog.Error("strToInt64 error", err)
 				c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 				return
 			}
 			if c.DefaultQuery("to", "") != "" {
 				q.To, err = strToInt64(c.DefaultQuery("to", ""))
 				if err != nil {
+					klog.Error("strToInt64 error", err)
 					c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 					return
 				}
 			}
-			hlog.Infof("Query Audit Log, from:%v, to:%v", q.From, q.To)
+			klog.Infof("Query Audit Log, from:%v, to:%v", q.From, q.To)
 		}
 
 		if q.From == 0 {
@@ -152,11 +156,13 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
+			klog.Error("strToInt error", err)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 			return
 		}
 		q.PageSize, err = strToInt(c.DefaultQuery("page_size", "10"))
 		if err != nil {
+			klog.Error("strToInt error", err)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
 			return
 		}
@@ -164,7 +170,7 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		var count int64
 		result, err := models.SelectAuditLog(q, &count) // 查询日志
 		if err != nil {
-			hlog.Error("Database query failure, err: ", err)
+			klog.Error("Database query failure, err: ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))
 			return
 		}
@@ -197,17 +203,18 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 // TracesExtras 查询日志扩展数据
 func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
+		klog := slog.FromContext(c)
 		// 查询待修改策略
 		exid := c.Param("exid")
 		if ok := common.CheckUuId(exid); !ok {
-			hlog.Error("Invalid policy id format ", exid)
+			klog.Error("Invalid policy id format ", exid)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid extras id format.", ""))
 			return
 		}
 
 		result, err := models.FindAlogExtras(exid)
 		if err != nil {
-			hlog.Error("Database query failure, err: ", err)
+			klog.Error("Database query failure, err: ", err)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, answer.ResBody(common.EcodeError, err.Error(), ""))
 			} else {
@@ -216,10 +223,10 @@ func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 
-		hlog.Debug(result)
+		klog.Debug(result)
 		var _reqdata interface{}
 		if err := json.Unmarshal([]byte(result.Reqdata), &_reqdata); err != nil {
-			hlog.Error("json.Unmarshal ", err)
+			klog.Error("json.Unmarshal ", err)
 			_reqdata = result.Reqdata
 		}
 

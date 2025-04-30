@@ -1,0 +1,46 @@
+name: Release Version
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Log in to the swr registry : swr.cn-north-1.myhuaweicloud.com"
+        uses: docker/login-action@v3.1.0
+        with:
+          registry: swr.cn-north-1.myhuaweicloud.com
+          username: cn-north-1@${{ secrets.HW_SWR_DOCKER_USERNAME }}
+          password: ${{ secrets.HW_SWR_DOCKER_PASSWORD }}
+
+      - name: "Checkout repository"
+        uses: actions/checkout@v4.1.1
+
+      - name: "Docker Metadata"
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: |
+            swr.cn-north-1.myhuaweicloud.com/onge/ats
+          tags: |
+            latest
+            type=semver,pattern={{version}}
+
+
+      - name: "Build and push Docker image"
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          push: true
+          file: Dockerfile
+          build-args: |
+            ATS_REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+            ATS_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.revision=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+            org.opencontainers.image.version=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+ 

@@ -5,13 +5,23 @@ ats:
     host: "127.0.0.1"
     port: "3306"
     name: "atsdb"
-    user: "service"
-    passwd: "725e134ad943e3122132c66e648c0dc0325d792c3b9d3b49f80cf9b5a2df8b"
+    user: "ats"
+    passwd: ""
   uias:
     endpoint: "https://uias.apilocalvm.outsrkem.top:30078"
   cron:
     cleanlog:
       time: "03 3 * * *"
-      days: 10
+      days: 30
   log:
-    level: "INFO"
+    level: "DEBUG"
+    output:
+      #stdout: "-"
+      file:
+        name: "/opt/service/ats/logs/service.log"
+        maxsize: 10
+        maxbackups: 300
+        maxage: 60
+        compress: true
+    
+

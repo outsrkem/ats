@@ -1,4 +1,6 @@
 #!/bin/bash
+workspace=$(cd `dirname $0`/..; pwd)
+cd $workspace
 
 app=ats
 version=${1:-build_0}

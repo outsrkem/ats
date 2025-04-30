@@ -3,21 +3,23 @@ package audit
 import (
 	"ats/src/config"
 	"ats/src/pkg/common"
+	"ats/src/slog"
 	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
 
-	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/app"
 )
 
 // DoHttpV1 向后端接口发送http请求
-func DoHttpV1(res *httpCli) (*http.Response, error) {
+func DoHttpV1(c *app.RequestContext, res *httpCli) (*http.Response, error) {
+	klog := slog.FromContext(c)
 	client := &http.Client{}
 	req, err := http.NewRequest(res.Method, res.Url, res.Body)
 	if err != nil {
-		hlog.Error("Get error: ", err)
+		klog.Error("Get error: ", err)
 		return nil, err
 	}
 	// 设置请求头
@@ -26,14 +28,15 @@ func DoHttpV1(res *httpCli) (*http.Response, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		hlog.Error("Failed to send request:", err)
+		klog.Error("Failed to send request:", err)
 		return nil, err
 	}
 	return resp, nil
 }
 
 // CheckAction 向UIAS请求验证权限验证
-func CheckAction(action string, token string) (bool, *map[string]map[string]interface{}) {
+func CheckAction(c *app.RequestContext, action string, token string) (bool, *map[string]map[string]interface{}) {
+	klog := slog.FromContext(c)
 	var req httpCli
 	req.Headers = map[string]string{"X-Auth-Token": token}
 
@@ -44,10 +47,11 @@ func CheckAction(action string, token string) (bool, *map[string]map[string]inte
 			"action": action,
 		},
 	})
+
 	req.Body = bytes.NewBuffer(raw)
-	resp, err := DoHttpV1(&req)
+	resp, err := DoHttpV1(c, &req)
 	if err != nil {
-		hlog.Error("Error making GET request:", err)
+		klog.Error("Error making GET request:", err)
 		return false, nil
 	}
 
@@ -55,7 +59,7 @@ func CheckAction(action string, token string) (bool, *map[string]map[string]inte
 	defer func() {
 		if resp != nil {
 			if err := resp.Body.Close(); err != nil {
-				hlog.Error("Close request failed: %v", err)
+				klog.Errorf("Close request failed: %s", err)
 			}
 		}
 	}()
@@ -64,47 +68,44 @@ func CheckAction(action string, token string) (bool, *map[string]map[string]inte
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		hlog.Error("read body error: ", err)
+		klog.Error("read body error: ", err)
 		return false, &result
 	}
 
-	hlog.Debug("resp body: ", string(body))
+	klog.Debug("resp body: ", string(body))
 	if err := json.Unmarshal(body, &result); err != nil {
-		hlog.Warn("json Unmarshal err", err)
+		klog.Error("json Unmarshal err", err)
 		return false, &result
 	}
 
 	if resp.StatusCode == 404 {
-		hlog.Warn("Interface not found: ", string(body))
+		klog.Error("api not found: ", string(body))
 		return false, &result
 	}
 
 	if resp.StatusCode != 200 {
-		hlog.Warn("check action Status: ", resp.Status)
+		klog.Error("check action Status: ", resp.Status)
 		return false, &result
 	}
 	authentication := result["payload"]["authentication"]
 	if authentication != float64(1) {
+		klog.Warnf("Permission denied.")
 		return false, &result
 	}
 	return true, &result
 }
 
 func strToInt64(str string) (int64, error) {
-	hlog.Info("strToInt64, str: ", str)
 	intValue, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		hlog.Error("Error converting string to int64: ", err)
 		return 0, err
 	}
 	return intValue, nil
 }
 
 func strToInt(str string) (int, error) {
-	hlog.Info("strToInt, str: ", str)
 	intValue, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		hlog.Error("Error converting string to int64: ", err)
 		return 0, err
 	}
 	return int(intValue), nil
