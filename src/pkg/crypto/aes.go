@@ -5,13 +5,12 @@
 package crypto
 
 import (
+	"ats/src/slog"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/hex"
 	"io"
-
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 const (
@@ -64,9 +63,10 @@ func Encryption(plain string) string {
 
 // Decryption decrypts a cipher text string.
 func Decryption(cipherText string) (string, error) {
+	klog := slog.FromContext(nil)
 	encryptedHex, err := hex.DecodeString(cipherText)
 	if err != nil {
-		hlog.Error("Unable to decode hexadecimal string: ", err)
+		klog.Error("Unable to decode hexadecimal string: ", err)
 		return "", err
 	}
 	plain := aesDecryptCFB(encryptedHex, key)

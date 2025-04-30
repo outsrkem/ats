@@ -3,6 +3,8 @@ package route
 import (
 	"ats/src/config"
 	"ats/src/pkg/answer"
+	"ats/src/pkg/uuid4"
+	"ats/src/slog"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -11,20 +13,51 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
+
+const xRequestIdKey = "X-Request-Id"
+const xAuthTokenKey = "X-Auth-Token"
+
+func RequestId() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		klog := slog.FromContext(c)
+		xRequestId := string(c.GetHeader(xRequestIdKey))
+		if xRequestId == "" {
+			xRequestId = uuid4.Uuid4Str()
+			c.Response.Header.Set(xRequestIdKey, xRequestId)
+			klog.Warnf("request id is empty, Set a new request id: %s", xRequestId)
+		}
+		c.Set("xRequestId", xRequestId)
+		c.Next(ctx)
+	}
+}
+
+func RequestRecorder() app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		klog := slog.FromContext(c)
+		start := time.Now()
+		c.Next(ctx)
+		stop := time.Now()
+		latency := stop.Sub(start)
+		klog.Infof("|%14s | %d |%7s %s",
+			latency, c.Response.StatusCode(), string(c.Request.Method()), c.Request.URI().String())
+	}
+}
 
 func apc(action string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
-		hlog.Debugf("start check action, [%s]", action)
-		token := c.Request.Header.Get("X-Auth-Token")
-		if token == "" {
-			hlog.Error("X-Auth-Token is empty.")
-			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "X-Auth-Token is empty.", ""))
+		klog := slog.FromContext(c)
+		xRequestId := c.Request.Header.Get(xRequestIdKey)
+		xAuthToken := c.Request.Header.Get(xAuthTokenKey)
+		klog.Debug("token: ", xAuthToken)
+		klog.Infof("start check action, [%s] [%s]", xRequestId, action)
+		if xAuthToken == "" {
+			klog.Error(xAuthTokenKey + " is empty.")
+			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, xAuthTokenKey+" is empty.", ""))
 			c.Abort()
 			return
 		}
-		hlog.Debug("token: ", token)
+
 		type actionRaw struct {
 			Uias struct {
 				Action string `json:"action"`
@@ -34,7 +67,7 @@ func apc(action string) app.HandlerFunc {
 		raw.Uias.Action = action
 		rawJson, err := json.Marshal(raw)
 		if err != nil {
-			hlog.Errorf("Error marshaling audit log: %v", err)
+			klog.Errorf("Error marshaling audit log: %v", err)
 			c.Abort()
 			return
 		}
@@ -42,19 +75,19 @@ func apc(action string) app.HandlerFunc {
 		url := config.Cfg.Ats.Uias.Endpoint + "/v1/uias/action/check"
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(rawJson))
 		if err != nil {
-			hlog.Errorf("Error creating request: %v", err)
+			klog.Errorf("Error creating request: %v", err)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
 		}
-
-		req.Header.Set("X-Auth-Token", token)
+		req.Header.Set(xAuthTokenKey, xAuthToken)
+		req.Header.Set(xRequestIdKey, xRequestId)
 		req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
-		client := &http.Client{Timeout: 30 * time.Second}
+		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			hlog.Errorf("Error sending req log: %v", err)
+			klog.Errorf("Error sending req log: %v", err)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
@@ -62,14 +95,14 @@ func apc(action string) app.HandlerFunc {
 		defer func() {
 			if resp != nil {
 				if err := resp.Body.Close(); err != nil {
-					hlog.Error("Close request failed: %v", err)
+					klog.Errorf("Close request failed: %v", err)
 				}
 			}
 		}()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			hlog.Error("io.ReadAll", err)
+			klog.Error("io.ReadAll", err)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
@@ -77,34 +110,34 @@ func apc(action string) app.HandlerFunc {
 
 		var result AuthResultData
 		if resp.StatusCode != http.StatusOK {
-			hlog.Errorf("Request failed with status code %d", resp.StatusCode)
+			klog.Errorf("Request failed with status code %d", resp.StatusCode)
 			c.JSON(resp.StatusCode, result)
 			c.Abort()
 			return
 		}
 
 		if err := json.Unmarshal(body, &result); err != nil {
-			hlog.Warn("json Unmarshal err: ", err)
-			hlog.Error(result)
+			klog.Warn("json Unmarshal err: ", err)
+			klog.Error(result)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
 		}
 
-		hlog.Debugf("result: %+v", result)
+		klog.Debugf("result: %+v", result)
 		authentication := result.Payload.Authentication
 		if authentication != 1 {
 			// 没有权限，返回403和上游返回体，便于查看问题
-			hlog.Warnf("Permission denial. result: %+v", result)
+			klog.Warnf("Permission denial. result: %+v", result)
 			c.JSON(403, result)
 			c.Abort()
 			return
 		}
 
-		hlog.Info("Permission is granted, and the operation is authorized.")
+		klog.Info("Permission is granted, and the operation is authorized.")
 		c.Set("userId", result.Payload.User.ID)
 		c.Set("account", result.Payload.User.Name.Account)
-		hlog.Debug("end check action")
+		klog.Debug("end check action")
 		c.Next(ctx)
 	}
 }

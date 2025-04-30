@@ -1,24 +1,28 @@
 package mysql
 
 import (
-	"ats/src/config"
+	"ats/src/cfgtypts"
+	"ats/src/slog"
 	"database/sql"
 	"fmt"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"time"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"time"
 )
 
 var DB *gorm.DB
 
 // InitDB initializes the database connection.
-func InitDB(cfg *config.Database) {
-	// Construct the DSN string.
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true", cfg.User, cfg.Passwd, cfg.Host, cfg.Port, cfg.Name)
-	hlog.Debug("database passwd: ", cfg.Passwd)
-	hlog.Info("Connect database: ", cfg.Host+":"+cfg.Port)
+func InitDB(cfg *cfgtypts.Ats) {
+	dbcfg := cfg.Database
+	klog := slog.FromContext(nil)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true",
+		dbcfg.User, dbcfg.Passwd, dbcfg.Host, dbcfg.Port, dbcfg.Name)
+
+	klog.Debugf("database passwd: %s", dbcfg.Passwd)
+	klog.Debugf("Connect database: : %s:%s", dbcfg.Host, dbcfg.Port)
 	retries := 0
 	backoff := time.Second
 	var (
@@ -27,8 +31,8 @@ func InitDB(cfg *config.Database) {
 		_db *sql.DB
 	)
 	for {
-		// Attempt to connect to the database.
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+			Logger:                 NewGormLogger(cfg),
 			SkipDefaultTransaction: true,
 			PrepareStmt:            true,
 			NamingStrategy: schema.NamingStrategy{
@@ -37,7 +41,7 @@ func InitDB(cfg *config.Database) {
 			},
 		})
 		if err == nil {
-			hlog.Info("database connection is successful.")
+			klog.Infof("database connection is successful.")
 			break
 		}
 
@@ -46,7 +50,7 @@ func InitDB(cfg *config.Database) {
 			panic(err)
 		}
 
-		hlog.Error("Failed to connect to database. Retrying in %v...", backoff)
+		klog.Errorf("Failed to connect to database. Retrying in %v...", backoff)
 		time.Sleep(backoff)
 
 		backoff += time.Second

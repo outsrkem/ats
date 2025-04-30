@@ -1,6 +1,8 @@
 package config
 
 import (
+	"ats/src/cfgtypts"
+	"ats/src/slog"
 	"flag"
 	"os"
 
@@ -14,7 +16,7 @@ type FlagArgs struct {
 	Plain        string // 接收命令行字符串，用于加密
 }
 
-var Cfg *Config
+var Cfg *cfgtypts.Config
 
 func NewFlagArgs() *FlagArgs {
 	fa := &FlagArgs{}
@@ -26,8 +28,9 @@ func NewFlagArgs() *FlagArgs {
 }
 
 // InitConfig 初始化配置
-func InitConfig() *Config {
-	var _cfg Config
+func InitConfig() *cfgtypts.Config {
+	klog := slog.FromContext(nil)
+	var _cfg cfgtypts.Config
 	fa := NewFlagArgs()
 	if fa.PrintVersion {
 		versions, _ := newVersions(Version, GoVersion, GitCommit)
@@ -36,7 +39,7 @@ func InitConfig() *Config {
 	if fa.Plain != "" { // 加密命令行字符串
 		encryption(fa.Plain)
 	}
-	hlog.Info("Read configuration file: ", fa.CfgPath)
+	klog.Infof("Read configuration file: %s", fa.CfgPath)
 	configData, err := os.ReadFile(fa.CfgPath)
 	if err != nil {
 		hlog.Info("读取配置文件失败")
@@ -48,7 +51,7 @@ func InitConfig() *Config {
 		hlog.Info("配置解析失败")
 		os.Exit(1)
 	}
-	_cfg.decryptionDatabaseMysqlPwd()
+	decryptionDatabaseMysqlPwd(&_cfg)
 	Cfg = &_cfg
 	return Cfg
 }

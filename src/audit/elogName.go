@@ -2,9 +2,8 @@ package audit
 
 import (
 	"ats/src/models"
+	"ats/src/slog"
 	"sync"
-
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 )
 
 type logName struct {
@@ -35,6 +34,7 @@ func GetElogName(logName string, lang string) string {
 
 // InitLogCache 初始化加载日志事件名称
 func InitLogCache() error {
+	klog := slog.FromContext(nil)
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
 	if initialized {
@@ -43,7 +43,7 @@ func InitLogCache() error {
 
 	logTypes, err := models.FineAllLogName()
 	if err != nil {
-		hlog.Error(err.Error())
+		klog.Error(err.Error())
 	}
 	for _, lt := range logTypes {
 		logCache[lt.Name] = &logName{

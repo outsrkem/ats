@@ -10,6 +10,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/utils"
 )
 
+func Middleware(h *server.Hertz) {
+	h.Use(RequestId())
+	h.Use(RequestRecorder())
+}
+
 func AtsRoute(h *server.Hertz) {
 	h.GET("/", func(ctx context.Context, c *app.RequestContext) {
 		c.JSON(http.StatusOK, utils.H{"message": "Hello World"})

@@ -2,9 +2,10 @@ package models
 
 import (
 	"ats/src/database/mysql"
+	"ats/src/slog"
 	"errors"
 
-	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/hertz/pkg/app"
 	"gorm.io/gorm"
 )
 
@@ -20,12 +21,12 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 		}
 	}
 	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
-	hlog.Infof("query condition: %v", q)
 	return alog, err
 }
 
 // InstAuditLog 保存日志
-func InstAuditLog(supeve []*OrmSupEve, extras []*OrmExtras, alog []*OrmAuditLog) error {
+func InstAuditLog(c *app.RequestContext, supeve []*OrmSupEve, extras []*OrmExtras, alog []*OrmAuditLog) error {
+	klog := slog.FromContext(c)
 	if supeve == nil || extras == nil {
 		return errors.New("supeve and extras cannot be nil")
 	}
@@ -33,7 +34,7 @@ func InstAuditLog(supeve []*OrmSupEve, extras []*OrmExtras, alog []*OrmAuditLog)
 	// 通用的错误处理函数
 	createRecord := func(tx *gorm.DB, record interface{}, name string) error {
 		if err := tx.Create(record).Error; err != nil {
-			hlog.Errorf("Failed to create %s: %v", name, err)
+			klog.Errorf("Failed to create %s: %v", name, err)
 			return err
 		}
 		return nil
@@ -51,7 +52,7 @@ func InstAuditLog(supeve []*OrmSupEve, extras []*OrmExtras, alog []*OrmAuditLog)
 		}
 
 		// 创建 alog 记录
-		if err := createRecord(tx, &alog, "alog"); err != nil {
+		if err := createRecord(tx, alog, "alog"); err != nil {
 			return err
 		}
 
@@ -62,7 +63,7 @@ func InstAuditLog(supeve []*OrmSupEve, extras []*OrmExtras, alog []*OrmAuditLog)
 // FindAlogExtras 查询日志扩展数据
 func FindAlogExtras(exid string) (*OrmExtras, error) {
 	var extras OrmExtras
-	query := mysql.DB.Where("exid=?", exid).First(&extras)
+	query := mysql.DB.Where("exid = ?", exid).First(&extras)
 	return &extras, query.Error
 }
 
@@ -81,14 +82,15 @@ func DeleteAuditLog(t int64) (int64, error) {
 			return result.Error
 		}
 		rowsAffected = result.RowsAffected
-
-		// 删除 OrmAuditLog 表中符合条件的记录
-		if err := tx.Where("seid IN (?)", seids).Delete(&OrmAuditLog{}).Error; err != nil {
-			return err
-		}
-		// 删除 OrmExtras 表中符合条件的记录
-		if err := tx.Where("seid IN (?)", seids).Delete(&OrmExtras{}).Error; err != nil {
-			return err
+		if len(seids) > 0 {
+			// 删除 OrmAuditLog 表中符合条件的记录
+			if err := tx.Where("seid IN (?)", seids).Delete(&OrmAuditLog{}).Error; err != nil {
+				return err
+			}
+			// 删除 OrmExtras 表中符合条件的记录
+			if err := tx.Where("seid IN (?)", seids).Delete(&OrmExtras{}).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	})
