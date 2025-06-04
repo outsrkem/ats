@@ -21,7 +21,7 @@ func AtsRoute(h *server.Hertz) {
 	})
 
 	// 上传审计日志
-	h.POST("/v1/ats/upload", audit.SaveAuditLog())
+	h.POST("/v1/ats/upload", apc("svc:ats:createAlog"), audit.SaveAuditLog())
 
 	// 日志查询
 	h.GET("/v1/ats/traces", apc("ats:traces:listAlog"), audit.TracesAuditLog())      // 查询事件列表

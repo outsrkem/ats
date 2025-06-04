@@ -3,18 +3,17 @@ package route
 import (
 	"ats/src/config"
 	"ats/src/pkg/answer"
-	"ats/src/pkg/uuid4"
+	"ats/src/pkg/core"
 	"ats/src/slog"
-	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
-	"io"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/google/uuid"
 )
 
 const xRequestIdKey = "X-Request-Id"
@@ -23,14 +22,19 @@ const xAuthTokenKey = "X-Auth-Token"
 func RequestId() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		klog := slog.FromContext(c)
-		xRequestId := string(c.GetHeader(xRequestIdKey))
+		xRequestId := string(c.GetHeader("X-Request-Id"))
 		if xRequestId == "" {
-			xRequestId = uuid4.Uuid4Str()
-			c.Response.Header.Set(xRequestIdKey, xRequestId)
+			xRequestId = strings.ReplaceAll(uuid.New().String(), "-", "")
+			c.Request.Header.Set("X-Request-Id", xRequestId)
 			klog.Warnf("request id is empty, Set a new request id: %s", xRequestId)
 		}
 		c.Set("xRequestId", xRequestId)
 		c.Next(ctx)
+		// 如果响应头中没有 X-Request-Id，则添加它
+		if c.Response.Header.Get("X-Request-Id") == "" {
+			c.Response.Header.Set("X-Request-Id", xRequestId)
+			klog.Debugf("Set X-Request-Id in response: %s", xRequestId)
+		}
 	}
 }
 
@@ -53,6 +57,7 @@ func apc(action string) app.HandlerFunc {
 		xAuthToken := c.Request.Header.Get(xAuthTokenKey)
 		klog.Debug("token: ", xAuthToken)
 		klog.Infof("start check action, [%s] [%s]", xRequestId, action)
+
 		if xAuthToken == "" {
 			klog.Error(xAuthTokenKey + " is empty.")
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, xAuthTokenKey+" is empty.", ""))
@@ -67,7 +72,7 @@ func apc(action string) app.HandlerFunc {
 		}
 		var raw actionRaw
 		raw.Uias.Action = action
-		rawJson, err := json.Marshal(raw)
+		rawbody, err := json.Marshal(raw)
 		if err != nil {
 			klog.Errorf("Error marshaling audit log: %v", err)
 			c.Abort()
@@ -75,51 +80,37 @@ func apc(action string) app.HandlerFunc {
 		}
 
 		url := config.Cfg.Ats.Uias.Endpoint + "/v1/uias/action/check"
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(rawJson))
+		headers := map[string]string{
+			"Content-Type": "application/json; charset=utf-8",
+			xRequestIdKey:  xRequestId,
+			xAuthTokenKey:  xAuthToken,
+		}
+		client, err := core.CreateHttpClient(klog, config.Cfg.Ats.Uias.SkipTlsVerify, config.Cfg.Ats.Uias.CACertPath)
 		if err != nil {
-			klog.Errorf("Error creating request: %v", err)
-			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
+			klog.Errorf("Create Http Client Error: %v", err)
+			c.JSON(http.StatusInternalServerError, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
 		}
-		req.Header.Set(xAuthTokenKey, xAuthToken)
-		req.Header.Set(xRequestIdKey, xRequestId)
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: config.Cfg.Ats.Uias.SkipTlsVerify}}
-		client := &http.Client{Timeout: 5 * time.Second, Transport: transport}
-		resp, err := client.Do(req)
-		if err != nil {
-			klog.Errorf("Error sending req log: %v", err)
-			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
-			c.Abort()
-			return
-		}
-		defer func() {
-			if resp != nil {
-				if err := resp.Body.Close(); err != nil {
-					klog.Errorf("Close request failed: %v", err)
-				}
-			}
-		}()
 
-		body, err := io.ReadAll(resp.Body)
+		response, err := core.SendHttpRequest(klog, ctx, client, "POST", url, rawbody, headers, 10*time.Second)
 		if err != nil {
-			klog.Error("io.ReadAll", err)
+			klog.Errorf("Send Http Request error: %s", err)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))
 			c.Abort()
 			return
 		}
 
 		var result map[string]interface{}
-		if resp.StatusCode != http.StatusOK {
-			klog.Errorf("Request failed with status code %d", resp.StatusCode)
+		if response.StatusCode != http.StatusOK {
+			klog.Errorf("Request failed with status code %d", response.StatusCode)
 			klog.Infof("check action url: %s", url)
-			c.JSON(resp.StatusCode, result)
+			c.JSON(response.StatusCode, result)
 			c.Abort()
 			return
 		}
 
-		if err := json.Unmarshal(body, &result); err != nil {
+		if err := json.Unmarshal(response.Body, &result); err != nil {
 			klog.Warn("json Unmarshal err: ", err)
 			klog.Error(result)
 			c.JSON(http.StatusForbidden, answer.ResBody(answer.EcodeInvalidTokenError, "Internal service error.", ""))

@@ -26,7 +26,8 @@ type Database struct {
 
 type Uias struct {
 	Endpoint      string `yaml:"endpoint"`
-	SkipTlsVerify bool   `yaml:"skipTlsVerify"`
+	SkipTlsVerify bool   `yaml:"skipTlsVerify"` // 忽略上游ssl的ca验证，默认false，不跳过
+	CACertPath    string `yaml:"caCertPath"`    // 上游ssl的ca证书，优先级更高
 }
 
 type Cron struct {
