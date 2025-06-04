@@ -1,26 +1,29 @@
 [
     {
         "actionInfo": {
-            "name": "ats:traces:create",
-            "actionGroup": "ListOnly",
-            "description": "上传审计日志",
+            "name": "svc:ats:createAlog",
+            "title": "上传审计日志",
+            "group": "ReadWrite",
+            "description": "上传审计日志，服务账号权限",
             "status": "enabled"
         }
     },
     {
         "actionInfo": {
             "name": "ats:traces:listAlog",
-            "actionGroup": "ListOnly",
-            "description": "查询事件列表",
+            "title": "查询事件列表",
+            "group": "ListOnly",
+            "description": "查询审计日志事件列表",
             "status": "enabled"
         }
     },
     {
         "actionInfo": {
             "name": "ats:traces:getExtras",
+            "title": "查询审计日志的扩展数据",
             "group": "ReadOnly",
             "description": "查询日志扩展数据",
-            "status": "enable"
+            "status": "enabled"
         }
     }
 ]

@@ -1,52 +1,22 @@
 package audit
 
-import "bytes"
-
-type httpCli struct {
-	Headers map[string]string
-	Method  string
-	Url     string
-	Body    *bytes.Buffer
-}
-
-//	{
-//	   "service": "xxxxServic",
-//	   "events": [
-//	       {
-//	           "user_id": "xxx",
-//	           "account": "admin",
-//	           "source_ip": "222.10.10.111",
-//	           "resource_id": [
-//	               "3f507f27f2c54f609c60ab9dd6ae2a58"
-//	           ],
-//	           "name": "deleuser",
-//	           "rating": "normal",
-//	           "etime": 1732182636954,
-//	           "message": "{[1,2,3][]}",
-//	           "reqdata": "aaassssaa",
-//	           "uagent": "ccc",
-//	           "method": "method",
-//	           "requrl": "requrl"
-//	       }
-//	   ]
-//	}
-//
 // ReqCreateAudLogRaw 上传日志请求体
 type ReqCreateAudLogRaw struct {
-	Service string `json:"service"`
-	Events  []struct {
-		UserID     string   `json:"user_id"`
-		Account    string   `json:"account"`
-		SourceIP   string   `json:"source_ip"`
-		ResourceId []string `json:"resource_id"`
-		Name       string   `json:"name"`
-		Rating     string   `json:"rating"`
-		Etime      int64    `json:"etime"`
-		Message    string   `json:"message"`
-		Reqdata    string   `json:"reqdata"`
-		Uagent     string   `json:"uagent"` // user-agent
-		Method     string   `json:"method"`
-		ReqUrl     string   `json:"requrl"`
+	Service string `json:"service"` // 服务名称
+	// 事件主要内容
+	Events []struct {
+		UserID     string   `json:"user_id"`     // 账号ID
+		Account    string   `json:"account"`     // 操作账号
+		SourceIP   string   `json:"source_ip"`   // 请求的客户端IP
+		ResourceId []string `json:"resource_id"` // 资源ID
+		Name       string   `json:"name"`        // 事件名称
+		Rating     string   `json:"rating"`      // 日志类型/级别
+		Etime      int64    `json:"etime"`       // 事件发生时间
+		Message    string   `json:"message"`     // 日志消息
+		Reqdata    string   `json:"reqdata"`     // 请求体，Get请求一般没有请求体
+		Uagent     string   `json:"uagent"`      // user-agent
+		Method     string   `json:"method"`      // 请求方法，GET/POST/DELETE/...
+		ReqUrl     string   `json:"requrl"`      // 请求的URl路径
 	} `json:"events"`
 }
 
@@ -62,5 +32,4 @@ type ResTracesAuditLog struct {
 	ETime      int64  `json:"etime"`
 	Message    string `json:"message"`
 	Extras     string `json:"extras"`
-	CreateTime int64  `json:"create_time"`
 }

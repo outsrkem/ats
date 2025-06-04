@@ -18,6 +18,8 @@ import (
 )
 
 // 检查事件时间的有效性
+// 在过去的1小时整之内, 即当前时间减去1小时(包含该时刻)至当前时间之间的事件为有效事件
+// e.g. 当前时间18:30:00, 则在17:30:00~18:30:00之间的事件为有效
 func checkEtime(etime int64) bool {
 	now := time.Now().UnixMilli()
 	// 在过去的1小时之内
@@ -245,7 +247,7 @@ func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 			Method:   result.Method,
 			ReqUrl:   result.ReqUrl,
 		}
-		payload := map[string]interface{}{
+		payload := map[string]ReqData{
 			"extras": extras,
 		}
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", payload))
