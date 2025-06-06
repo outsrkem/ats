@@ -12,9 +12,8 @@ import (
 	"net/http"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/cloudwego/hertz/pkg/app"
+	"gorm.io/gorm"
 )
 
 // 检查事件时间的有效性
@@ -126,6 +125,8 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 // Parameter to int64: 事件截至事件,包含该时间，有to时必须有from，否则to无效
 // Parameter page int:
 // Parameter page_size int:
+// Parameter svc string: 按服务查询
+// Parameter resid string: 按资源ID查询
 func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
 		klog := slog.FromContext(c)
@@ -153,8 +154,10 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 
 		if q.From == 0 {
-			// 获取1月之前的时间戳，即默查询2月之内的事件
-			q.From = time.Now().AddDate(0, -2, 0).UnixNano() / 1e6
+			// 默查询N天之内的事件
+			day := 15
+			q.From = time.Now().AddDate(0, 0, -day).UnixNano() / 1e6
+			klog.Infof("No specific time is specified for querying event logs within %d days.", day)
 		}
 		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
@@ -166,6 +169,30 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		if err != nil {
 			klog.Error("strToInt error", err)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+			return
+		}
+
+		// 按服务查询
+		q.Service = c.DefaultQuery("svc", "")
+		if q.Service != "" && !isAlphaASCIILoop(q.Service) {
+			klog.Errorf("Query parameter error: svc [%s]", q.Service)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: svc", ""))
+			return
+		}
+
+		// 按资源id查询
+		q.ResourceId = c.DefaultQuery("resid", "")
+		if q.ResourceId != "" && !common.CheckUuId(q.ResourceId) {
+			klog.Errorf("Query parameter error: resid [%s]", q.ResourceId)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: resid", ""))
+			return
+		}
+
+		// 按事件名称查询
+		q.EventName = c.DefaultQuery("name", "")
+		if q.EventName != "" && !isAlphaASCIILoop(q.EventName) {
+			klog.Errorf("Query parameter error: name [%s]", q.EventName)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: name", ""))
 			return
 		}
 
@@ -252,4 +279,15 @@ func TracesExtras() func(ctx context.Context, c *app.RequestContext) {
 		}
 		c.JSON(http.StatusOK, answer.ResBody(common.EcodeOK, "", payload))
 	}
+}
+
+// isAlphaASCIILoop 检查服务名称是否都是字母, 即 a-z 和 A-Z
+// 字符串全是a-z和A-Z 返回true
+func isAlphaASCIILoop(s string) bool {
+	for _, c := range s {
+		if !(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')) {
+			return false
+		}
+	}
+	return true
 }

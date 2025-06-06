@@ -37,10 +37,13 @@ func (OrmExtras) TableName() string {
 
 // QueryCon 日志查询条件 query 参数
 type QueryCon struct {
-	PageSize int
-	Page     int
-	From     int64 // 起始时间
-	To       int64 // 结束时间
+	PageSize   int
+	Page       int
+	From       int64  // 起始时间
+	To         int64  // 结束时间
+	EventName  string // 事件名称
+	Service    string // 服务名 svc
+	ResourceId string // 资源ID resid
 }
 
 type OrmSupEve struct {
