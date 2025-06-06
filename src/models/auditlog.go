@@ -20,6 +20,12 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 			query.Where("etime<=?", q.To)
 		}
 	}
+	if q.Service != "" {
+		query.Where("service = ?", q.Service)
+	}
+	if q.ResourceId != "" {
+		query.Where("resource_id = ?", q.ResourceId)
+	}
 	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
 	return alog, err
 }
