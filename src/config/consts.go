@@ -1,4 +1,4 @@
-package common
+package config
 
 const (
 	CheckAction = "/v1/uias/action/check" // 权限校验

@@ -41,6 +41,7 @@ type QueryCon struct {
 	Page       int
 	From       int64  // 起始时间
 	To         int64  // 结束时间
+	EventName  string // 事件名称
 	Service    string // 服务名 svc
 	ResourceId string // 资源ID resid
 }

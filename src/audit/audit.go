@@ -154,8 +154,10 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		}
 
 		if q.From == 0 {
-			// 获取1月之前的时间戳，即默查询2月之内的事件
-			q.From = time.Now().AddDate(0, -2, 0).UnixNano() / 1e6
+			// 默查询N天之内的事件
+			day := 15
+			q.From = time.Now().AddDate(0, 0, day).UnixNano() / 1e6
+			klog.Infof("No specific time is specified for querying event logs within %d days.", day)
 		}
 		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
 		if err != nil {
@@ -183,6 +185,14 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 		if q.ResourceId != "" && !common.CheckUuId(q.ResourceId) {
 			klog.Errorf("Query parameter error: resid [%s]", q.ResourceId)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: resid", ""))
+			return
+		}
+
+		// 按事件名称查询
+		q.EventName = c.DefaultQuery("name", "")
+		if q.EventName != "" && !isAlphaASCIILoop(q.EventName) {
+			klog.Errorf("Query parameter error: name [%s]", q.EventName)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: name", ""))
 			return
 		}
 

@@ -26,6 +26,9 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	if q.ResourceId != "" {
 		query.Where("resource_id = ?", q.ResourceId)
 	}
+	if q.EventName != "" {
+		query.Where("name = ?", q.EventName)
+	}
 	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
 	return alog, err
 }
