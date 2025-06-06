@@ -185,6 +185,12 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: resid", ""))
 			return
 		}
+		q.EventName = c.DefaultQuery("name", "")
+		if q.EventName != "" && !isAlphaASCIILoop(q.EventName) {
+			klog.Errorf("Query parameter error: name [%s]", q.EventName)
+			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error: name", ""))
+			return
+		}
 
 		var count int64
 		result, err := models.SelectAuditLog(q, &count) // 查询日志
