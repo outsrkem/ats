@@ -79,7 +79,7 @@ func apc(action string) app.HandlerFunc {
 			return
 		}
 
-		url := config.Cfg.Ats.Uias.Endpoint + "/v1/uias/action/check"
+		url := config.Cfg.Ats.Uias.Endpoint + config.CheckAction
 		headers := map[string]string{
 			"Content-Type": "application/json; charset=utf-8",
 			xRequestIdKey:  xRequestId,
