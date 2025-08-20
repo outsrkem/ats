@@ -16,6 +16,9 @@ package mcache
 
 import (
 	"sync"
+	"unsafe"
+
+	"github.com/bytedance/gopkg/lang/dirtmake"
 )
 
 const maxSize = 46
@@ -23,12 +26,19 @@ const maxSize = 46
 // index contains []byte which cap is 1<<index
 var caches [maxSize]sync.Pool
 
+type bytesHeader struct {
+	Data *byte
+	Len  int
+	Cap  int
+}
+
 func init() {
 	for i := 0; i < maxSize; i++ {
 		size := 1 << i
 		caches[i].New = func() interface{} {
-			buf := make([]byte, 0, size)
-			return buf
+			buf := dirtmake.Bytes(0, size)
+			h := (*bytesHeader)(unsafe.Pointer(&buf))
+			return h.Data
 		}
 	}
 }
@@ -55,8 +65,14 @@ func Malloc(size int, capacity ...int) []byte {
 	if len(capacity) > 0 && capacity[0] > size {
 		c = capacity[0]
 	}
-	var ret = caches[calcIndex(c)].Get().([]byte)
-	ret = ret[:size]
+
+	i := calcIndex(c)
+
+	ret := []byte{}
+	h := (*bytesHeader)(unsafe.Pointer(&ret))
+	h.Len = size
+	h.Cap = 1 << i
+	h.Data = caches[i].Get().(*byte)
 	return ret
 }
 
@@ -66,6 +82,6 @@ func Free(buf []byte) {
 	if !isPowerOfTwo(size) {
 		return
 	}
-	buf = buf[:0]
-	caches[bsr(size)].Put(buf)
+	h := (*bytesHeader)(unsafe.Pointer(&buf))
+	caches[bsr(size)].Put(h.Data)
 }

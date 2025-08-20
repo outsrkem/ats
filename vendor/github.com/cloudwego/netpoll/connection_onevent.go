@@ -21,21 +21,8 @@ import (
 	"context"
 	"sync/atomic"
 
-	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/cloudwego/netpoll/internal/runner"
 )
-
-var runTask = gopool.CtxGo
-
-func setRunner(runner func(ctx context.Context, f func())) {
-	runTask = runner
-}
-
-func disableGopool() error {
-	runTask = func(ctx context.Context, f func()) {
-		go f()
-	}
-	return nil
-}
 
 // ------------------------------------ implement OnPrepare, OnRequest, CloseCallback ------------------------------------
 
@@ -94,7 +81,7 @@ func (c *connection) AddCloseCallback(callback CloseCallback) error {
 	if callback == nil {
 		return nil
 	}
-	var cb = &callbackNode{}
+	cb := &callbackNode{}
 	cb.fn = callback
 	if pre := c.closeCallbacks.Load(); pre != nil {
 		cb.pre = pre.(*callbackNode)
@@ -132,138 +119,113 @@ func (c *connection) onPrepare(opts *options) (err error) {
 
 // onConnect is responsible for executing onRequest if there is new data coming after onConnect callback finished.
 func (c *connection) onConnect() {
-	var onConnect, _ = c.onConnectCallback.Load().(OnConnect)
+	onConnect, _ := c.onConnectCallback.Load().(OnConnect)
 	if onConnect == nil {
-		atomic.StoreInt32(&c.state, 1)
+		c.changeState(connStateNone, connStateConnected)
 		return
 	}
 	if !c.lock(connecting) {
 		// it never happens because onDisconnect will not lock connecting if c.connected == 0
 		return
 	}
-	var onRequest, _ = c.onRequestCallback.Load().(OnRequest)
-	c.onProcess(
-		// only process when conn active and have unread data
-		func(c *connection) bool {
-			// if onConnect not called
-			if atomic.LoadInt32(&c.state) == 0 {
-				return true
-			}
-			// check for onRequest
-			return onRequest != nil && c.Reader().Len() > 0
-		},
-		func(c *connection) {
-			if atomic.CompareAndSwapInt32(&c.state, 0, 1) {
-				c.ctx = onConnect(c.ctx, c)
-
-				if !c.IsActive() && atomic.CompareAndSwapInt32(&c.state, 1, 2) {
-					// since we hold connecting lock, so we should help to call onDisconnect here
-					var onDisconnect, _ = c.onDisconnectCallback.Load().(OnDisconnect)
-					if onDisconnect != nil {
-						onDisconnect(c.ctx, c)
-					}
-				}
-				c.unlock(connecting)
-				return
-			}
-			if onRequest != nil {
-				_ = onRequest(c.ctx, c)
-			}
-		},
-	)
+	onRequest, _ := c.onRequestCallback.Load().(OnRequest)
+	c.onProcess(onConnect, onRequest)
 }
 
 // when onDisconnect called, c.IsActive() must return false
 func (c *connection) onDisconnect() {
-	var onDisconnect, _ = c.onDisconnectCallback.Load().(OnDisconnect)
+	onDisconnect, _ := c.onDisconnectCallback.Load().(OnDisconnect)
 	if onDisconnect == nil {
 		return
 	}
-	var onConnect, _ = c.onConnectCallback.Load().(OnConnect)
+	onConnect, _ := c.onConnectCallback.Load().(OnConnect)
 	if onConnect == nil {
 		// no need lock if onConnect is nil
-		atomic.StoreInt32(&c.state, 2)
+		// it's ok to force set state to disconnected since onConnect is nil
+		c.setState(connStateDisconnected)
 		onDisconnect(c.ctx, c)
 		return
 	}
 	// check if OnConnect finished when onConnect != nil && onDisconnect != nil
-	if atomic.LoadInt32(&c.state) > 0 && c.lock(connecting) { // means OnConnect already finished
+	if c.getState() != connStateNone && c.lock(connecting) { // means OnConnect already finished
 		// protect onDisconnect run once
 		// if CAS return false, means OnConnect already helps to run onDisconnect
-		if atomic.CompareAndSwapInt32(&c.state, 1, 2) {
+		if c.changeState(connStateConnected, connStateDisconnected) {
 			onDisconnect(c.ctx, c)
 		}
 		c.unlock(connecting)
 		return
 	}
 	// OnConnect is not finished yet, return and let onConnect helps to call onDisconnect
-	return
 }
 
 // onRequest is responsible for executing the closeCallbacks after the connection has been closed.
 func (c *connection) onRequest() (needTrigger bool) {
-	var onRequest, ok = c.onRequestCallback.Load().(OnRequest)
+	onRequest, ok := c.onRequestCallback.Load().(OnRequest)
 	if !ok {
 		return true
 	}
 	// wait onConnect finished first
-	if atomic.LoadInt32(&c.state) == 0 && c.onConnectCallback.Load() != nil {
+	if c.getState() == connStateNone && c.onConnectCallback.Load() != nil {
 		// let onConnect to call onRequest
 		return
 	}
-	processed := c.onProcess(
-		// only process when conn active and have unread data
-		func(c *connection) bool {
-			return c.Reader().Len() > 0
-		},
-		func(c *connection) {
-			_ = onRequest(c.ctx, c)
-		},
-	)
+	processed := c.onProcess(nil, onRequest)
 	// if not processed, should trigger read
 	return !processed
 }
 
-// onProcess is responsible for executing the process function serially,
-// and make sure the connection has been closed correctly if user call c.Close() in process function.
-func (c *connection) onProcess(isProcessable func(c *connection) bool, process func(c *connection)) (processed bool) {
-	if process == nil {
-		return false
-	}
+// onProcess is responsible for executing the onConnect/onRequest function serially,
+// and make sure the connection has been closed correctly if user call c.Close() in onConnect/onRequest function.
+func (c *connection) onProcess(onConnect OnConnect, onRequest OnRequest) (processed bool) {
 	// task already exists
 	if !c.lock(processing) {
 		return false
 	}
-	// add new task
-	var task = func() {
+
+	task := func() {
 		panicked := true
 		defer func() {
+			if !panicked {
+				return
+			}
 			// cannot use recover() here, since we don't want to break the panic stack
-			if panicked {
-				c.unlock(processing)
-				if c.IsActive() {
-					c.Close()
-				} else {
-					c.closeCallback(false, false)
-				}
+			c.unlock(processing)
+			if c.IsActive() {
+				c.Close()
+			} else {
+				c.closeCallback(false, false)
 			}
 		}()
-	START:
-		// `process` must be executed at least once if `isProcessable` in order to cover the `send & close by peer` case.
-		// Then the loop processing must ensure that the connection `IsActive`.
-		if isProcessable(c) {
-			process(c)
+		// trigger onConnect first
+		if onConnect != nil && c.changeState(connStateNone, connStateConnected) {
+			c.ctx = onConnect(c.ctx, c)
+			if !c.IsActive() && c.changeState(connStateConnected, connStateDisconnected) {
+				// since we hold connecting lock, so we should help to call onDisconnect here
+				onDisconnect, _ := c.onDisconnectCallback.Load().(OnDisconnect)
+				if onDisconnect != nil {
+					onDisconnect(c.ctx, c)
+				}
+			}
+			c.unlock(connecting)
 		}
-		// `process` must either eventually read all the input data or actively Close the connection,
+	START:
+		// The `onRequest` must be executed at least once if conn have any readable data,
+		// which is in order to cover the `send & close by peer` case.
+		if onRequest != nil && c.Reader().Len() > 0 {
+			_ = onRequest(c.ctx, c)
+		}
+		// The processing loop must ensure that the connection meets `IsActive`.
+		// `onRequest` must either eventually read all the input data or actively Close the connection,
 		// otherwise the goroutine will fall into a dead loop.
 		var closedBy who
 		for {
 			closedBy = c.status(closing)
-			// close by user or no processable
-			if closedBy == user || !isProcessable(c) {
+			// close by user or not processable
+			if closedBy == user || onRequest == nil || c.Reader().Len() == 0 {
 				break
 			}
-			process(c)
+			_ = onRequest(c.ctx, c)
 		}
 		// handling callback if connection has been closed.
 		if closedBy != none {
@@ -288,22 +250,23 @@ func (c *connection) onProcess(isProcessable func(c *connection) bool, process f
 			panicked = false
 			return
 		}
-		// double check isProcessable
-		if isProcessable(c) && c.lock(processing) {
+		// double check is processable
+		if onRequest != nil && c.Reader().Len() > 0 && c.lock(processing) {
 			goto START
 		}
 		// task exits
 		panicked = false
-		return
-	}
-	runTask(c.ctx, task)
+	} // end of task closure func
+
+	// add new task
+	runner.RunTask(c.ctx, task)
 	return true
 }
 
 // closeCallback .
 // It can be confirmed that closeCallback and onRequest will not be executed concurrently.
 // If onRequest is still running, it will trigger closeCallback on exit.
-func (c *connection) closeCallback(needLock bool, needDetach bool) (err error) {
+func (c *connection) closeCallback(needLock, needDetach bool) (err error) {
 	if needLock && !c.lock(processing) {
 		return nil
 	}
@@ -313,7 +276,7 @@ func (c *connection) closeCallback(needLock bool, needDetach bool) (err error) {
 			logger.Printf("NETPOLL: closeCallback[%v,%v] detach operator failed: %v", needLock, needDetach, err)
 		}
 	}
-	var latest = c.closeCallbacks.Load()
+	latest := c.closeCallbacks.Load()
 	if latest == nil {
 		return nil
 	}

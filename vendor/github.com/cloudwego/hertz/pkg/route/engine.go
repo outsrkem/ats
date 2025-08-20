@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -81,6 +82,7 @@ import (
 const unknownTransporterName = "unknown"
 
 var (
+	// will be netpoll.NewTransporter if available, see: netpoll.go
 	defaultTransporter = standard.NewTransporter
 
 	errInitFailed       = errs.NewPrivate("engine has been init already")
@@ -258,7 +260,18 @@ func (engine *Engine) IsStreamRequestBody() bool {
 }
 
 func (engine *Engine) IsRunning() bool {
-	return atomic.LoadUint32(&engine.status) == statusRunning
+	if atomic.LoadUint32(&engine.status) != statusRunning {
+		return false
+	}
+	// double check listener
+	type ListenerIface interface {
+		Listener() net.Listener
+	}
+	v, ok := engine.transport.(ListenerIface)
+	if ok {
+		return v.Listener() != nil
+	}
+	return true // default behavior if no ListenerIface
 }
 
 func (engine *Engine) HijackConnHandle(c network.Conn, h app.HijackHandler) {
@@ -300,9 +313,17 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		return
 	}
 
+	opt := engine.GetOptions()
+	hlog.SystemLogger().Infof("Begin graceful shutdown, wait at most %s ...", opt.ExitWaitTimeout)
+
+	ctx, cancel := context.WithTimeout(ctx, opt.ExitWaitTimeout)
+	defer cancel()
+
 	ch := make(chan struct{})
-	// trigger hooks if any
-	go engine.executeOnShutdownHooks(ctx, ch)
+	go func() {
+		defer close(ch)
+		engine.executeOnShutdownHooks(ctx)
+	}()
 
 	defer func() {
 		// ensure that the hook is executed until wait timeout or finish
@@ -316,7 +337,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 		}
 	}()
 
-	if opt := engine.options; opt != nil && opt.Registry != nil {
+	if opt.Registry != nil {
 		if err = opt.Registry.Deregister(opt.RegistryInfo); err != nil {
 			hlog.SystemLogger().Errorf("Deregister error=%v", err)
 			return err
@@ -331,7 +352,7 @@ func (engine *Engine) Shutdown(ctx context.Context) (err error) {
 	return
 }
 
-func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct{}) {
+func (engine *Engine) executeOnShutdownHooks(ctx context.Context) {
 	wg := sync.WaitGroup{}
 	for i := range engine.OnShutdown {
 		wg.Add(1)
@@ -341,18 +362,12 @@ func (engine *Engine) executeOnShutdownHooks(ctx context.Context, ch chan struct
 		}(i)
 	}
 	wg.Wait()
-	ch <- struct{}{}
 }
 
 func (engine *Engine) Run() (err error) {
 	if err = engine.Init(); err != nil {
 		return err
 	}
-
-	if err = engine.MarkAsRunning(); err != nil {
-		return err
-	}
-	defer atomic.StoreUint32(&engine.status, statusClosed)
 
 	// trigger hooks if any
 	ctx := context.Background()
@@ -361,6 +376,11 @@ func (engine *Engine) Run() (err error) {
 			return err
 		}
 	}
+
+	if err = engine.MarkAsRunning(); err != nil {
+		return err
+	}
+	defer atomic.StoreUint32(&engine.status, statusClosed)
 
 	return engine.listenAndServe()
 }
@@ -435,17 +455,7 @@ func (engine *Engine) onData(c context.Context, conn interface{}) (err error) {
 	return
 }
 
-func errProcess(conn io.Closer, err error) {
-	if err == nil {
-		return
-	}
-
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
-
+func logError(conn network.Conn, err error) {
 	// Quiet close the connection
 	if errors.Is(err, errs.ErrShortConnection) || errors.Is(err, errs.ErrIdleTimeout) {
 		return
@@ -453,12 +463,14 @@ func errProcess(conn io.Closer, err error) {
 
 	// Do not process the hijack connection error
 	if errors.Is(err, errs.ErrHijacked) {
-		err = nil
 		return
 	}
 
 	// Get remote address
-	rip := getRemoteAddrFromCloser(conn)
+	rip := ""
+	if addr := conn.RemoteAddr(); addr != nil {
+		rip = addr.String()
+	}
 
 	// Handle Specific error
 	if hsp, ok := conn.(network.HandleSpecificError); ok {
@@ -468,15 +480,6 @@ func errProcess(conn io.Closer, err error) {
 	}
 	// other errors
 	hlog.SystemLogger().Errorf(hlog.EngineErrorFormat, err.Error(), rip)
-}
-
-func getRemoteAddrFromCloser(conn io.Closer) string {
-	if c, ok := conn.(network.Conn); ok {
-		if addr := c.RemoteAddr(); addr != nil {
-			return addr.String()
-		}
-	}
-	return ""
 }
 
 func (engine *Engine) Close() error {
@@ -503,7 +506,12 @@ func (engine *Engine) GetServerName() []byte {
 
 func (engine *Engine) Serve(c context.Context, conn network.Conn) (err error) {
 	defer func() {
-		errProcess(conn, err)
+		if err != nil {
+			logError(conn, err)
+		}
+		if !errors.Is(err, errs.ErrHijacked) {
+			_ = conn.Close()
+		}
 	}()
 
 	// H2C path
@@ -560,6 +568,7 @@ func (engine *Engine) ServeStream(ctx context.Context, conn network.StreamConn) 
 }
 
 func (engine *Engine) initBinderAndValidator(opt *config.Options) {
+	var isCustomValidator bool
 	// init validator
 	if opt.CustomValidator != nil {
 		customValidator, ok := opt.CustomValidator.(binding.StructValidator)
@@ -567,6 +576,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 			panic("customized validator does not implement binding.StructValidator")
 		}
 		engine.validator = customValidator
+		isCustomValidator = true
 	} else {
 		engine.validator = binding.NewValidator(binding.NewValidateConfig())
 		if opt.ValidateConfig != nil {
@@ -575,6 +585,7 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 				panic("opt.ValidateConfig is not the '*binding.ValidateConfig' type")
 			}
 			engine.validator = binding.NewValidator(vConf)
+			isCustomValidator = true
 		}
 	}
 
@@ -595,7 +606,8 @@ func (engine *Engine) initBinderAndValidator(opt *config.Options) {
 		if !ok {
 			panic("opt.BindConfig is not the '*binding.BindConfig' type")
 		}
-		if bConf.Validator == nil {
+		// optimize: user customized validator has the highest priority
+		if isCustomValidator || bConf.Validator == nil {
 			bConf.Validator = engine.validator
 		}
 		engine.binder = binding.NewDefaultBinder(bConf)
@@ -683,7 +695,7 @@ func (engine *Engine) addRoute(method, path string, handlers app.HandlersChain) 
 
 	methodRouter := engine.trees.get(method)
 	if methodRouter == nil {
-		methodRouter = &router{method: method, root: &node{}, hasTsrHandler: make(map[string]bool)}
+		methodRouter = &router{method: method, root: &node{}}
 		engine.trees = append(engine.trees, methodRouter)
 	}
 	methodRouter.addRoute(path, handlers)

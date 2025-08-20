@@ -36,13 +36,15 @@ const (
 	ErrEOF = syscall.Errno(0x106)
 	// Write I/O buffer timeout, calling by Connection.Writer
 	ErrWriteTimeout = syscall.Errno(0x107)
+	// Concurrent connection access error
+	ErrConcurrentAccess = syscall.Errno(0x108)
 )
 
 const ErrnoMask = 0xFF
 
 // wrap Errno, implement xerrors.Wrapper
 func Exception(err error, suffix string) error {
-	var no, ok = err.(syscall.Errno)
+	no, ok := err.(syscall.Errno)
 	if !ok {
 		if suffix == "" {
 			return err
@@ -52,9 +54,7 @@ func Exception(err error, suffix string) error {
 	return &exception{no: no, suffix: suffix}
 }
 
-var (
-	_ net.Error = (*exception)(nil)
-)
+var _ net.Error = (*exception)(nil)
 
 type exception struct {
 	no     syscall.Errno
@@ -98,10 +98,7 @@ func (e *exception) Timeout() bool {
 	case ErrDialTimeout, ErrReadTimeout, ErrWriteTimeout:
 		return true
 	}
-	if e.no.Timeout() {
-		return true
-	}
-	return false
+	return e.no.Timeout()
 }
 
 func (e *exception) Temporary() bool {
@@ -110,11 +107,12 @@ func (e *exception) Temporary() bool {
 
 // Errors defined in netpoll
 var errnos = [...]string{
-	ErrnoMask & ErrConnClosed:     "connection has been closed",
-	ErrnoMask & ErrReadTimeout:    "connection read timeout",
-	ErrnoMask & ErrDialTimeout:    "dial wait timeout",
-	ErrnoMask & ErrDialNoDeadline: "dial no deadline",
-	ErrnoMask & ErrUnsupported:    "netpoll dose not support",
-	ErrnoMask & ErrEOF:            "EOF",
-	ErrnoMask & ErrWriteTimeout:   "connection write timeout",
+	ErrnoMask & ErrConnClosed:       "connection has been closed",
+	ErrnoMask & ErrReadTimeout:      "connection read timeout",
+	ErrnoMask & ErrDialTimeout:      "dial wait timeout",
+	ErrnoMask & ErrDialNoDeadline:   "dial no deadline",
+	ErrnoMask & ErrUnsupported:      "netpoll does not support",
+	ErrnoMask & ErrEOF:              "EOF",
+	ErrnoMask & ErrWriteTimeout:     "connection write timeout",
+	ErrnoMask & ErrConcurrentAccess: "concurrent connection access",
 }

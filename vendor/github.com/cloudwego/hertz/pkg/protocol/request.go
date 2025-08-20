@@ -172,7 +172,7 @@ func (req *Request) BodyBuffer() *bytebufferpool.ByteBuffer {
 //     with ContinueReadBody.
 //   - Or close the connection.
 func (req *Request) MayContinue() bool {
-	return bytes.Equal(req.Header.peek(bytestr.StrExpect), bytestr.Str100Continue)
+	return bytes.Equal(req.Header.peek(consts.HeaderExpect), bytestr.Str100Continue)
 }
 
 // Scheme returns the scheme of the request.
@@ -238,7 +238,7 @@ func (req *Request) MultipartForm() (*multipart.Form, error) {
 		return nil, errors.ErrNoMultipartForm
 	}
 
-	ce := req.Header.peek(bytestr.StrContentEncoding)
+	ce := req.Header.peek(consts.HeaderContentEncoding)
 	var err error
 	var f *multipart.Form
 
@@ -411,7 +411,7 @@ func (req *Request) ResetBody() {
 	req.RemoveMultipartFormFiles()
 	req.CloseBodyStream() //nolint:errcheck
 	if req.body != nil {
-		if req.body.Len() <= req.maxKeepBodySize {
+		if req.body.Cap() <= req.maxKeepBodySize {
 			req.body.Reset()
 			return
 		}
@@ -464,7 +464,7 @@ func (req *Request) SetFormData(data map[string]string) {
 		req.postArgs.Add(k, v)
 	}
 	req.parsedPostArgs = true
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 }
 
 // SetFormDataFromValues sets x-www-form-urlencoded params from url values.
@@ -475,7 +475,7 @@ func (req *Request) SetFormDataFromValues(data url.Values) {
 		}
 	}
 	req.parsedPostArgs = true
-	req.Header.SetContentTypeBytes(bytestr.StrPostArgsContentType)
+	req.Header.SetContentTypeBytes(bytestr.MIMEPostForm)
 }
 
 // SetFile sets single file field name and its path for multipart upload.
@@ -638,7 +638,7 @@ func (req *Request) IsBodyStream() bool {
 
 func (req *Request) BodyStream() io.Reader {
 	if req.bodyStream == nil {
-		req.bodyStream = NoBody
+		return NoBody
 	}
 	return req.bodyStream
 }
@@ -684,8 +684,7 @@ func (req *Request) parsePostArgs() {
 		return
 	}
 	req.parsedPostArgs = true
-
-	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.StrPostArgsContentType) {
+	if !bytes.HasPrefix(req.Header.ContentType(), bytestr.MIMEPostForm) {
 		return
 	}
 	req.postArgs.ParseBytes(req.Body())
