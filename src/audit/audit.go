@@ -161,18 +161,24 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			q.From = time.Now().AddDate(0, 0, -day).UnixNano() / 1e6
 			klog.Infof("No specific time is specified for querying event logs within %d days.", day)
 		}
-		q.Page, err = strToInt(c.DefaultQuery("page", "1"))
+
+		q.Limit, q.Offset, err = common.GetPagingQuery(c)
 		if err != nil {
-			klog.Error("strToInt error", err)
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+			klog.Error(err)
 			return
 		}
-		q.PageSize, err = strToInt(c.DefaultQuery("page_size", "10"))
-		if err != nil {
-			klog.Error("strToInt error", err)
-			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
-			return
-		}
+		//q.Page, err = strToInt(c.DefaultQuery("page", "1"))
+		//if err != nil {
+		//	klog.Error("strToInt error", err)
+		//	c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+		//	return
+		//}
+		//q.PageSize, err = strToInt(c.DefaultQuery("page_size", "10"))
+		//if err != nil {
+		//	klog.Error("strToInt error", err)
+		//	c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Query parameter error", ""))
+		//	return
+		//}
 
 		// 按服务查询
 		q.Service = c.DefaultQuery("svc", "")
@@ -222,7 +228,7 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			}
 		}
 
-		pageInfo := answer.SetPageInfo(q.PageSize, q.Page, count)
+		pageInfo := answer.SetPageInfo(q.Limit, q.Offset, count)
 		payload := map[string]interface{}{
 			"items":     alogs,
 			"page_info": pageInfo,

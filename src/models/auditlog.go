@@ -29,7 +29,7 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	if q.EventName != "" {
 		query.Where("name = ?", q.EventName)
 	}
-	err := query.Count(count).Limit(q.PageSize).Offset((q.Page - 1) * q.PageSize).Find(&alog).Error
+	err := query.Count(count).Limit(q.Limit).Offset(q.Offset).Find(&alog).Error
 	return alog, err
 }
 
