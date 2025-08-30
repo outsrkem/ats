@@ -1,0 +1,15 @@
+{
+    "name": "ATS FullAccess",
+    "description": "审计日志管理员",
+    "permit": {
+        "Version": "1.0",
+        "Statement": [
+            {
+                "Action": [
+                    "ats:*:*"
+                ],
+                "Effect": "Allow"
+            }
+        ]
+    }
+}
