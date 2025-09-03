@@ -28,7 +28,7 @@ func checkEtime(etime int64) bool {
 }
 
 // processEvents 处理事件数据
-func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmAuditLog, []*models.OrmExtras) {
+func processEvents(domainId string, data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmAuditLog, []*models.OrmExtras) {
 	supeve := make([]*models.OrmSupEve, 0)
 	eventAlog := make([]*models.OrmAuditLog, 0)
 	extras := make([]*models.OrmExtras, 0)
@@ -36,12 +36,14 @@ func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmA
 	for _, event := range data.Events {
 		seid := uuid4.Uuid4Str()
 		supeve = append(supeve, &models.OrmSupEve{
+			DomainId:   domainId,
 			Seid:       seid,
 			Etime:      event.Etime,
 			CreateTime: t,
 		})
 		exid := uuid4.Uuid4Str()
 		extras = append(extras, &models.OrmExtras{
+			DomainId: domainId,
 			Seid:     seid,
 			Exid:     exid,
 			Reqdata:  event.Reqdata,
@@ -51,15 +53,16 @@ func processEvents(data ReqCreateAudLogRaw) ([]*models.OrmSupEve, []*models.OrmA
 			ReqUrl:   event.ReqUrl,
 		})
 		baseEvent := models.OrmAuditLog{
-			Seid:    seid,
-			UserId:  event.UserID,
-			Account: event.Account,
-			Service: data.Service,
-			Name:    event.Name,
-			Rating:  event.Rating,
-			Message: event.Message,
-			Extras:  exid,
-			ETime:   event.Etime,
+			Seid:     seid,
+			DomainId: domainId,
+			UserId:   event.UserID,
+			Account:  event.Account,
+			Service:  data.Service,
+			Name:     event.Name,
+			Rating:   event.Rating,
+			Message:  event.Message,
+			Extras:   exid,
+			ETime:    event.Etime,
 		}
 		if len(event.ResourceId) > 0 {
 			for _, v := range event.ResourceId {
@@ -82,17 +85,28 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 	return func(ctx context.Context, c *app.RequestContext) {
 		klog := slog.FromContext(c)
 		raw, _ := c.Body()
+
 		var data ReqCreateAudLogRaw
 		if err := json.Unmarshal(raw, &data); err != nil {
 			klog.Warn("json Unmarshal err", err)
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "Invalid request data.", ""))
 			return
 		}
+
+		domainId := data.DomainId
+		if domainId == "" {
+			// 域id不存在
+			klog.Error("The domain ID does not exist.")
+			c.JSON(http.StatusUnprocessableEntity, answer.ResBody(common.EcodeError, "The domain ID does not exist.", nil))
+			return
+		}
+
 		if len(data.Events) > 10 {
 			klog.Warn("More than 10 events uploaded.")
 			c.JSON(http.StatusBadRequest, answer.ResBody(common.EcodeError, "The number of events exceeded the upper limit by 10.", ""))
 			return
 		}
+
 		klog.Info("Create event service: ", data.Service)
 		klog.Infof("The number of created events is %d", len(data.Events))
 
@@ -101,19 +115,27 @@ func SaveAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			if ok := checkEtime(event.Etime); !ok {
 				msg := "The event time does not meet the requirements"
 				klog.Warnf("%s [%d]", msg, event.Etime)
-				c.JSON(http.StatusUnprocessableEntity, answer.ResBody(common.EcodeError, msg, ""))
+				c.JSON(http.StatusUnprocessableEntity, answer.ResBody(common.EcodeError, msg, nil))
 				return
 			}
 		}
 
-		supeve, eventAlog, extras := processEvents(data)
+		supeve, eventAlog, extras := processEvents(domainId, data)
 		klog.Debugf("supeve: %+v", supeve)
 		klog.Debugf("extras: %+v", extras)
 		klog.Debugf("eventAlog: %+v", eventAlog)
 
+		// 检查域的存在性
+		if err := CreateDomain(domainId); err != nil {
+			klog.Error("create domain, ", err)
+			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "system error", nil))
+			return
+		}
+
+		// 保存日志
 		if err := models.InstAuditLog(c, supeve, extras, eventAlog); err != nil {
 			klog.Error("Event creation failure, ", err)
-			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", ""))
+			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Insert data to db failed", nil))
 			return
 		}
 
@@ -204,8 +226,12 @@ func TracesAuditLog() func(ctx context.Context, c *app.RequestContext) {
 			return
 		}
 
+		// TODO TOKEN 里面的domain并非用户的domain，而是服务账号的domain
+		// 每条日志需要用户的domain
+		// 考虑使用用户的TOKEN，从中获取domain
+		domainId := c.GetString("domainId") // 获取域ID
 		var count int64
-		result, err := models.SelectAuditLog(q, &count) // 查询日志
+		result, err := models.SelectAuditLog(domainId, q, &count) // 查询日志
 		if err != nil {
 			klog.Error("Database query failure, err: ", err)
 			c.JSON(http.StatusInternalServerError, answer.ResBody(common.EcodeError, "Internal service error", ""))

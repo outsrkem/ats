@@ -121,6 +121,9 @@ github.com/golang/protobuf/proto
 # github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
+# github.com/hiuias/uias-sdk-go v0.0.1-rc.4
+## explicit; go 1.22.0
+github.com/hiuias/uias-sdk-go
 # github.com/jinzhu/inflection v1.0.0
 ## explicit
 github.com/jinzhu/inflection

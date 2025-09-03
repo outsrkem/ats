@@ -5,6 +5,7 @@ go 1.22.0
 require (
 	github.com/cloudwego/hertz v0.10.1
 	github.com/google/uuid v1.3.0
+	github.com/hiuias/uias-sdk-go v0.0.1-rc.4
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sirupsen/logrus v1.9.3

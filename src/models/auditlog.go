@@ -10,9 +10,9 @@ import (
 )
 
 // SelectAuditLog 查询日志列表
-func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
+func SelectAuditLog(domainId string, q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	var alog []OrmAuditLog
-	query := mysql.DB.Model(&OrmAuditLog{}).Order("id DESC")
+	query := mysql.DB.Model(&OrmAuditLog{}).Where("domain_id = ?", domainId)
 	if q.From != 0 {
 		query.Where("etime>=?", q.From)
 		if q.To != 0 {
@@ -29,7 +29,7 @@ func SelectAuditLog(q QueryCon, count *int64) ([]OrmAuditLog, error) {
 	if q.EventName != "" {
 		query.Where("name = ?", q.EventName)
 	}
-	err := query.Count(count).Limit(q.Limit).Offset(q.Offset).Find(&alog).Error
+	err := query.Order("id DESC").Count(count).Limit(q.Limit).Offset(q.Offset).Find(&alog).Error
 	return alog, err
 }
 

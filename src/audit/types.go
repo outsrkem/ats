@@ -2,9 +2,10 @@ package audit
 
 // ReqCreateAudLogRaw 上传日志请求体
 type ReqCreateAudLogRaw struct {
-	Service string `json:"service"` // 服务名称
+	Service  string `json:"service"`   // 服务名称, 必填
+	DomainId string `json:"dimain_id"` // 域ID, 必填
 	// 事件主要内容
-	Events []struct {
+	Events []*struct {
 		UserID     string   `json:"user_id"`     // 账号ID
 		Account    string   `json:"account"`     // 操作账号
 		SourceIP   string   `json:"source_ip"`   // 请求的客户端IP
