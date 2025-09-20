@@ -16,13 +16,15 @@ import (
 	"gorm.io/gorm"
 )
 
-// 检查事件时间的有效性
-// 在过去的1小时整之内, 即当前时间减去1小时(包含该时刻)至当前时间之间的事件为有效事件
-// e.g. 当前时间18:30:00, 则在17:30:00~18:30:00之间的事件为有效
+// 放宽时间范围：过去1小时内 至 未来30分钟内
+// 适用于需要容忍节点时间误差的场景
 func checkEtime(etime int64) bool {
 	now := time.Now().UnixMilli()
-	// 在过去的1小时之内
-	return etime > now-3600000 && etime <= now
+	pastWindow := int64(3600 * 1000)   // 过去1小时（3600秒）
+	futureWindow := int64(1800 * 1000) // 未来30分钟（1800秒）
+
+	// 时间范围：[当前时间-1小时, 当前时间+30分钟]
+	return etime > now-pastWindow && etime <= now+futureWindow
 }
 
 // processEvents 处理事件数据
