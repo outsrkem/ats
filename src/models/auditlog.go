@@ -4,6 +4,7 @@ import (
 	"ats/src/database/mysql"
 	"ats/src/slog"
 	"errors"
+	"fmt"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"gorm.io/gorm"
@@ -77,32 +78,40 @@ func FindAlogExtras(exid string) (*OrmExtras, error) {
 }
 
 func DeleteAuditLog(t int64) (int64, error) {
-	var rowsAffected int64
+	var totalRowsAffected int64
+
 	err := mysql.DB.Transaction(func(tx *gorm.DB) error {
-		var seids []string // 存储筛选出的 seid
-		err := tx.Model(&OrmSupEve{}).Select("seid").Where("etime < ?", t).Find(&seids).Error
-		if err != nil {
-			return err
+		// 1. 查询符合条件的seid
+		var seids []string
+		if err := tx.Model(&OrmSupEve{}).Select("seid").Where("etime < ?", t).Find(&seids).Error; err != nil {
+			return fmt.Errorf("query seids failed: %w", err)
 		}
 
-		// 删除 OrmSupEve 表中符合条件的记录
-		result := tx.Where("seid IN (?)", seids).Delete(&OrmSupEve{})
-		if result.Error != nil {
-			return result.Error
+		// 2. 若seids为空，直接返回不执行删除
+		if len(seids) == 0 {
+			return nil
 		}
-		rowsAffected = result.RowsAffected
-		if len(seids) > 0 {
-			// 删除 OrmAuditLog 表中符合条件的记录
-			if err := tx.Where("seid IN (?)", seids).Delete(&OrmAuditLog{}).Error; err != nil {
-				return err
-			}
-			// 删除 OrmExtras 表中符合条件的记录
-			if err := tx.Where("seid IN (?)", seids).Delete(&OrmExtras{}).Error; err != nil {
-				return err
-			}
+
+		// 3. 删除SupEve表记录
+		supEveResult := tx.Where("seid IN (?)", seids).Delete(&OrmSupEve{})
+		if supEveResult.Error != nil {
+			return fmt.Errorf("delete OrmSupEve failed: %w", supEveResult.Error)
 		}
+
+		totalRowsAffected = supEveResult.RowsAffected
+
+		// 4. 删除AuditLog表记录
+		if err := tx.Where("seid IN (?)", seids).Delete(&OrmAuditLog{}).Error; err != nil {
+			return fmt.Errorf("delete OrmAuditLog failed: %w", err)
+		}
+
+		// 5. 删除Extras表记录
+		if err := tx.Where("seid IN (?)", seids).Delete(&OrmExtras{}).Error; err != nil {
+			return fmt.Errorf("delete OrmExtras failed: %w", err)
+		}
+
 		return nil
 	})
 
-	return rowsAffected, err
+	return totalRowsAffected, err
 }

@@ -14,7 +14,7 @@ type OrmLogName struct {
 }
 
 func (*OrmLogName) TableName() string {
-	return "logname"
+	return "ats_logname"
 }
 
 func FineAllLogName() ([]*OrmLogName, error) {
